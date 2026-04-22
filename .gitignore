@@ -1,0 +1,21 @@
+# Ignore everything by default
+*
+
+# Keep folder traversal so negation patterns can re-include files
+!*/
+
+# Keep this file itself
+!/.gitignore
+
+# Allow JSON and UI assets
+!*.json
+!/cyberlearn-*.json
+!*.html
+!*.js
+!*.css
+
+# Allow specific Rust source files
+!src-tauri/build.rs
+!src-tauri/src/main.rs
+!src-tauri/src/lib.rs
+

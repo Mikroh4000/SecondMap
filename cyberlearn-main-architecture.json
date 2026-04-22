@@ -1,0 +1,194 @@
+{
+  "nodes": [
+    {
+      "id": "root",
+      "title": "Cyberlearn Architecture",
+      "content": "# Cyberlearn - Complete Architecture Overview\n\nA comprehensive cybersecurity learning platform built with **Django backend** and **React frontend**.\n\n**Key Components:**\n- Backend: Django REST Framework + PostgreSQL/SQLite\n- Frontend: React with modern UI\n- Authentication: JWT with Cookie-based storage\n- Learning Content: Lessons, Tasks, Progress Tracking",
+      "x": 400,
+      "y": 200,
+      "width": 280,
+      "color": "#4a90e2",
+      "template": null,
+      "priority": "high",
+      "tags": ["architecture", "overview", "main"],
+      "favorite": true,
+      "parentId": null,
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "backend",
+      "title": "Backend System",
+      "content": "## Django Backend\n\n**Location:** `cyberlearn/` + `learning/`\n\n**Core Technologies:**\n- Django 4.x\n- Django REST Framework\n- PostgreSQL/SQLite\n- JWT Authentication\n- CORS Support\n\n*See: Backend Architecture Map for details*",
+      "x": 100,
+      "y": 450,
+      "width": 240,
+      "color": "#f0ad4e",
+      "template": null,
+      "priority": "high",
+      "tags": ["backend", "django"],
+      "favorite": false,
+      "parentId": "root",
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "frontend",
+      "title": "Frontend System",
+      "content": "## React Frontend\n\n**Location:** `Front-End/client/`\n\n**Core Technologies:**\n- React 18+\n- React Router\n- Axios for API calls\n- Modern CSS/Styling\n\n*See: Frontend Architecture Map for details*",
+      "x": 700,
+      "y": 450,
+      "width": 240,
+      "color": "#5cb85c",
+      "template": null,
+      "priority": "high",
+      "tags": ["frontend", "react"],
+      "favorite": false,
+      "parentId": "root",
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "database",
+      "title": "Database Models",
+      "content": "## Data Layer\n\n**Location:** `learning/models.py`\n\n**Core Models:**\n- User (Django Auth)\n- Lesson\n- ContentBlocks\n- TaskBlocks\n- UserProgress\n- UserProfile\n- Note\n\n*See: Database Models Map for details*",
+      "x": 400,
+      "y": 700,
+      "width": 240,
+      "color": "#9b59b6",
+      "template": null,
+      "priority": "high",
+      "tags": ["database", "models"],
+      "favorite": false,
+      "parentId": "root",
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "auth",
+      "title": "Authentication",
+      "content": "## Auth Flow\n\n**Location:** `learning/authentication.py` + `views.py`\n\n**Features:**\n- Email-based login\n- JWT tokens with refresh\n- HttpOnly cookies\n- CSRF protection\n\n*See: Authentication Flow Map for details*",
+      "x": 1100,
+      "y": 450,
+      "width": 240,
+      "color": "#e74c3c",
+      "template": null,
+      "priority": "high",
+      "tags": ["auth", "security"],
+      "favorite": false,
+      "parentId": "root",
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "api",
+      "title": "API Endpoints",
+      "content": "## REST API\n\n**Location:** `learning/urls.py` + `views.py`\n\n**Main Routes:**\n- `/api/lessons/`\n- `/api/progress/`\n- `/api/token/` (Auth)\n- `/api/notes/`\n- `/api/tasks/<id>/submit/`\n\n*See: API Endpoints Map for details*",
+      "x": 400,
+      "y": 950,
+      "width": 240,
+      "color": "#16a085",
+      "template": null,
+      "priority": "high",
+      "tags": ["api", "endpoints"],
+      "favorite": false,
+      "parentId": "root",
+      "collapsed": false,
+      "attachments": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge1",
+      "source": "root",
+      "target": "backend",
+      "label": "Powers",
+      "color": "#555",
+      "style": "solid",
+      "weight": 2,
+      "bidirectional": false
+    },
+    {
+      "id": "edge2",
+      "source": "root",
+      "target": "frontend",
+      "label": "Served by",
+      "color": "#555",
+      "style": "solid",
+      "weight": 2,
+      "bidirectional": false
+    },
+    {
+      "id": "edge3",
+      "source": "root",
+      "target": "database",
+      "label": "Uses",
+      "color": "#555",
+      "style": "solid",
+      "weight": 2,
+      "bidirectional": false
+    },
+    {
+      "id": "edge4",
+      "source": "root",
+      "target": "auth",
+      "label": "Secures via",
+      "color": "#555",
+      "style": "solid",
+      "weight": 2,
+      "bidirectional": false
+    },
+    {
+      "id": "edge5",
+      "source": "root",
+      "target": "api",
+      "label": "Exposes",
+      "color": "#555",
+      "style": "solid",
+      "weight": 2,
+      "bidirectional": false
+    },
+    {
+      "id": "edge6",
+      "source": "backend",
+      "target": "database",
+      "label": "Manages",
+      "color": "#999",
+      "style": "dashed",
+      "weight": 1,
+      "bidirectional": false
+    },
+    {
+      "id": "edge7",
+      "source": "backend",
+      "target": "auth",
+      "label": "Implements",
+      "color": "#999",
+      "style": "dashed",
+      "weight": 1,
+      "bidirectional": false
+    },
+    {
+      "id": "edge8",
+      "source": "frontend",
+      "target": "backend",
+      "label": "Calls via API",
+      "color": "#999",
+      "style": "dashed",
+      "weight": 1,
+      "bidirectional": true
+    }
+  ],
+  "groups": [
+    {
+      "id": "group1",
+      "name": "Backend",
+      "color": "#f0ad4e"
+    },
+    {
+      "id": "group2",
+      "name": "Frontend",
+      "color": "#5cb85c"
+    }
+  ]
+}

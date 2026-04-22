@@ -1,0 +1,216 @@
+{
+  "nodes": [
+    {
+      "id": "db_root",
+      "title": "Database Models",
+      "content": "# Cyberlearn Data Models\n\n**File Location:** `learning/models.py`\n\n**Database:** SQLite (dev) / PostgreSQL (prod)\n\n**Key Concepts:**\n- Django ORM\n- Foreign Key relationships\n- User-related signals\n- Content hierarchy: Lesson → ContentBlocks/TaskBlocks",
+      "x": 400,
+      "y": 200,
+      "width": 280,
+      "color": "#9b59b6",
+      "template": null,
+      "priority": "high",
+      "tags": ["database", "models"],
+      "favorite": true,
+      "parentId": null,
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "user_model",
+      "title": "User & Auth Models",
+      "content": "## Django Built-in User Model\n\n**File:** Django auth module\n\n**Fields:**\n- username\n- email\n- password\n- first_name, last_name\n- is_active, is_staff\n- date_joined\n\n**Extended by:**\n- UserProfile (OneToOne)\n- UserProgress (OneToOne)",
+      "x": 100,
+      "y": 500,
+      "width": 240,
+      "color": "#3498db",
+      "template": null,
+      "priority": null,
+      "tags": ["user", "auth"],
+      "favorite": false,
+      "parentId": "db_root",
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "userprofile",
+      "title": "UserProfile",
+      "content": "## User Profile Extension\n\n**Relation:** OneToOne → User\n**File:** `models.py` line 55-58\n\n**Fields:**\n- `user` (ForeignKey)\n- `bio` (TextField, blank=True)\n\n**Auto-Created:**\n- Signal `create_user_profile` fires on User creation\n- Post-save signal `save_user_profile` keeps in sync",
+      "x": 100,
+      "y": 750,
+      "width": 240,
+      "color": "#3498db",
+      "template": null,
+      "priority": null,
+      "tags": ["user", "profile"],
+      "favorite": false,
+      "parentId": "db_root",
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "userprogress",
+      "title": "UserProgress",
+      "content": "## User Learning Progress\n\n**Relation:** OneToOne → User\n**File:** `models.py` line 44-51\n\n**Fields:**\n- `user` (OneToOne)\n- `level` (CharField) - Beginner/Intermediate/Advanced\n- `progress` (JSONField) - Structured data\n- `score` (IntegerField) - Total points\n\n**Purpose:**\n- Track user's current level\n- Store lesson completion status\n- Manage user's XP/score",
+      "x": 100,
+      "y": 1000,
+      "width": 240,
+      "color": "#3498db",
+      "template": null,
+      "priority": null,
+      "tags": ["progress", "tracking"],
+      "favorite": false,
+      "parentId": "db_root",
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "lesson",
+      "title": "Lesson",
+      "content": "## Learning Unit\n\n**File:** `models.py` line 5-18\n\n**Fields:**\n- `title` (CharField) - Lesson name\n- `content` (TextField) - Main description\n- `difficulty` (CharField)\n  - Choices: Beginner, Intermediate, Advanced\n- `created_at` (DateTimeField) - Auto timestamp\n\n**Relations:**\n- OneToMany → ContentBlocks (content_blocks)\n- OneToMany → TaskBlocks (task_blocks)\n\n**Purpose:**\n- Main learning container\n- Organized by difficulty\n- Contains educational content",
+      "x": 700,
+      "y": 400,
+      "width": 260,
+      "color": "#27ae60",
+      "template": null,
+      "priority": null,
+      "tags": ["lesson", "content"],
+      "favorite": false,
+      "parentId": "db_root",
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "contentblocks",
+      "title": "ContentBlocks",
+      "content": "## Lesson Content\n\n**File:** `models.py` line 20-28\n\n**Fields:**\n- `lesson` (ForeignKey) → Lesson\n- `content_type` (CharField)\n  - Choices: 'text', 'code'\n- `content` (TextField) - HTML/markdown\n- `order` (IntegerField) - Display order\n\n**Purpose:**\n- Break lesson into sections\n- Support mixed content types\n- Control rendering order",
+      "x": 700,
+      "y": 700,
+      "width": 240,
+      "color": "#27ae60",
+      "template": null,
+      "priority": null,
+      "tags": ["content", "blocks"],
+      "favorite": false,
+      "parentId": "db_root",
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "taskblocks",
+      "title": "TaskBlocks",
+      "content": "## Interactive Tasks/Quizzes\n\n**File:** `models.py` line 30-42\n\n**Fields:**\n- `lesson` (ForeignKey) → Lesson\n- `question` (CharField) - Task text\n- `code_example` (TextField) - Optional code\n- `options` (JSONField) - Answer choices\n- `correct_answer` (IntegerField) - Index\n- `experience` (IntegerField) - XP reward\n- `order` (IntegerField) - Display order\n\n**Purpose:**\n- Interactive quiz questions\n- Multiple choice with code\n- Experience/gamification",
+      "x": 700,
+      "y": 1000,
+      "width": 240,
+      "color": "#27ae60",
+      "template": null,
+      "priority": null,
+      "tags": ["task", "quiz"],
+      "favorite": false,
+      "parentId": "db_root",
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "note",
+      "title": "Note",
+      "content": "## User Notes\n\n**File:** `models.py` line 53-54\n\n**Fields:**\n- `description` (CharField) - Note text\n- `owner` (ForeignKey) → User\n\n**Purpose:**\n- User annotations\n- Personal study notes\n- Course bookmarks",
+      "x": 1100,
+      "y": 750,
+      "width": 240,
+      "color": "#f39c12",
+      "template": null,
+      "priority": null,
+      "tags": ["note", "user"],
+      "favorite": false,
+      "parentId": "db_root",
+      "collapsed": false,
+      "attachments": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge1",
+      "source": "db_root",
+      "target": "user_model",
+      "label": "Uses",
+      "color": "#555",
+      "style": "solid",
+      "weight": 2,
+      "bidirectional": false
+    },
+    {
+      "id": "edge2",
+      "source": "db_root",
+      "target": "lesson",
+      "label": "Stores",
+      "color": "#555",
+      "style": "solid",
+      "weight": 2,
+      "bidirectional": false
+    },
+    {
+      "id": "edge3",
+      "source": "user_model",
+      "target": "userprofile",
+      "label": "Has",
+      "color": "#3498db",
+      "style": "dashed",
+      "weight": 1,
+      "bidirectional": true
+    },
+    {
+      "id": "edge4",
+      "source": "user_model",
+      "target": "userprogress",
+      "label": "Tracks",
+      "color": "#3498db",
+      "style": "dashed",
+      "weight": 1,
+      "bidirectional": true
+    },
+    {
+      "id": "edge5",
+      "source": "user_model",
+      "target": "note",
+      "label": "Creates",
+      "color": "#999",
+      "style": "dashed",
+      "weight": 1,
+      "bidirectional": false
+    },
+    {
+      "id": "edge6",
+      "source": "lesson",
+      "target": "contentblocks",
+      "label": "Contains",
+      "color": "#27ae60",
+      "style": "dashed",
+      "weight": 1,
+      "bidirectional": false
+    },
+    {
+      "id": "edge7",
+      "source": "lesson",
+      "target": "taskblocks",
+      "label": "Has tasks",
+      "color": "#27ae60",
+      "style": "dashed",
+      "weight": 1,
+      "bidirectional": false
+    }
+  ],
+  "groups": [
+    {
+      "id": "group1",
+      "name": "User Models",
+      "color": "#3498db"
+    },
+    {
+      "id": "group2",
+      "name": "Content Models",
+      "color": "#27ae60"
+    }
+  ]
+}

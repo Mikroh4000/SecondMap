@@ -1,0 +1,81 @@
+{
+  "nodes": [
+    {
+      "id": "root1",
+      "title": "Mein Projekt",
+      "content": "# Übersicht\nDas ist der **Hauptknoten**.\n\n- Punkt 1\n- Punkt 2",
+      "x": 400,
+      "y": 200,
+      "width": 240,
+      "color": "#c8f064",
+      "template": null,
+      "priority": "high",
+      "tags": ["wichtig", "start"],
+      "favorite": true,
+      "parentId": null,
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "idea1",
+      "title": "Erste Idee",
+      "content": "Hier steht eine *Idee* mit `Code`.\n\n$$E = mc^2$$",
+      "x": 100,
+      "y": 450,
+      "width": 220,
+      "color": "#f0c864",
+      "template": "idea",
+      "priority": null,
+      "tags": ["brainstorming"],
+      "favorite": false,
+      "parentId": "root1",
+      "collapsed": false,
+      "attachments": []
+    },
+    {
+      "id": "task1",
+      "title": "Aufgabe erledigen",
+      "content": "> Das muss bis Freitag fertig sein.\n\n1. Schritt eins\n2. Schritt zwei\n3. Schritt drei",
+      "x": 700,
+      "y": 450,
+      "width": 220,
+      "color": "#64b4f0",
+      "template": "task",
+      "priority": "medium",
+      "tags": ["todo"],
+      "favorite": false,
+      "parentId": "root1",
+      "collapsed": false,
+      "attachments": []
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge1",
+      "source": "root1",
+      "target": "idea1",
+      "label": "inspiriert",
+      "color": "#555",
+      "style": "solid",
+      "weight": 1,
+      "bidirectional": false
+    },
+    {
+      "id": "edge2",
+      "source": "root1",
+      "target": "task1",
+      "label": "",
+      "color": "#555",
+      "style": "dashed",
+      "weight": 2,
+      "bidirectional": true
+    }
+  ],
+  "groups": [
+    {
+      "id": "group1",
+      "name": "Planung",
+      "color": "#c8f064"
+    }
+  ]
+}

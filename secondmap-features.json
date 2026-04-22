@@ -1,0 +1,165 @@
+{
+  "nodes": [
+    {
+      "id": "root",
+      "title": "SecondMap – Alle Features",
+      "content": "# Übersicht\nAlle Funktionen von SecondMap mit Anwendungsbeispielen.\n\nDiese Map ist selbst ein Beispiel dafür, wie man Wissen strukturiert.",
+      "x": 600, "y": 50, "width": 300,
+      "color": "#c8f064", "template": null, "priority": "high",
+      "tags": ["übersicht"], "favorite": true, "parentId": null, "collapsed": false, "attachments": []
+    },
+
+    {
+      "id": "cat-markdown",
+      "title": "📝 Markdown Rendering",
+      "content": "## Unterstützte Syntax\n\n| Syntax | Ergebnis |\n| --- | --- |\n| `**fett**` | **fett** |\n| `*kursiv*` | *kursiv* |\n| `~~durch~~` | ~~durch~~ |\n| `` `code` `` | Inline-Code |\n| `# Heading` | Überschriften H1–H6 |\n| `> Zitat` | Blockquote |\n| `- Punkt` | Aufzählung |\n| `1. Punkt` | Nummerierte Liste |\n| `---` | Horizontale Linie |",
+      "x": 50, "y": 250, "width": 320,
+      "color": "#64b4f0", "template": "concept", "priority": null,
+      "tags": ["markdown", "formatierung"], "favorite": false, "parentId": "root", "collapsed": false, "attachments": []
+    },
+    {
+      "id": "feat-tables",
+      "title": "Tabellen",
+      "content": "## Syntax\n```\n| Register | Adresse | Beschreibung |\n| --- | --- | --- |\n| CR0 | 0x000 | Control Register |\n| CR3 | 0x003 | Page Directory |\n```\n\n## Anwendung\n- **Hardware**: Register-Maps, Speicherlayout\n- **Physik**: Konstanten-Tabellen\n- **Vergleiche**: Coreboot vs Libreboot Features",
+      "x": -250, "y": 500, "width": 340,
+      "color": "#64b4f0", "template": "hardware", "priority": null,
+      "tags": ["tabelle", "hardware"], "favorite": false, "parentId": "cat-markdown", "collapsed": false, "attachments": []
+    },
+    {
+      "id": "feat-checkbox",
+      "title": "Checkboxen",
+      "content": "## Syntax\n```\n- [x] UART-Treiber geschrieben\n- [x] SPI-Flash gelesen\n- [ ] Payload kompiliert\n- [ ] Board getestet\n```\n\n## Ergebnis\n- [x] UART-Treiber geschrieben\n- [x] SPI-Flash gelesen\n- [ ] Payload kompiliert\n- [ ] Board getestet\n\n## Anwendung\nLernfortschritt, Build-Checklisten, Konfigurationsschritte",
+      "x": -250, "y": 780, "width": 300,
+      "color": "#64b4f0", "template": "task", "priority": null,
+      "tags": ["checkbox", "tracking"], "favorite": false, "parentId": "cat-markdown", "collapsed": false, "attachments": []
+    },
+    {
+      "id": "feat-images",
+      "title": "Bilder einbetten",
+      "content": "## Syntax\n```\n![Blockdiagramm](https://example.com/arch.png)\n```\n\n## Anwendung\n- Schaltpläne und Blockdiagramme\n- CPU-Architektur-Bilder\n- Oszilloskop-Screenshots\n- Fotos von Hardware-Setups",
+      "x": -250, "y": 1020, "width": 280,
+      "color": "#64b4f0", "template": "note", "priority": null,
+      "tags": ["bilder", "diagramme"], "favorite": false, "parentId": "cat-markdown", "collapsed": false, "attachments": []
+    },
+
+    {
+      "id": "cat-latex",
+      "title": "🧮 LaTeX / Formeln",
+      "content": "## Inline\n`$E = mc^2$` → $E = mc^2$\n\n## Display Block\n```\n$$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$\n```\n\n$$\\int_0^\\infty e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}$$\n\n## Anwendung\n- Mathematische Beweise dokumentieren\n- Physik-Formeln (Maxwell, Schrödinger, etc.)\n- Signalverarbeitung (Fourier, Z-Transform)",
+      "x": 250, "y": 250, "width": 320,
+      "color": "#a064f0", "template": "formula", "priority": null,
+      "tags": ["latex", "mathe", "physik"], "favorite": true, "parentId": "root", "collapsed": false, "attachments": []
+    },
+    {
+      "id": "feat-latex-physics",
+      "title": "Physik-Beispiele",
+      "content": "### Maxwell-Gleichungen\n$$\\nabla \\cdot \\mathbf{E} = \\frac{\\rho}{\\varepsilon_0}$$\n$$\\nabla \\times \\mathbf{B} = \\mu_0 \\mathbf{J} + \\mu_0 \\varepsilon_0 \\frac{\\partial \\mathbf{E}}{\\partial t}$$\n\n### Ohmsches Gesetz\n$U = R \\cdot I$\n\n### Leistung\n$P = U \\cdot I = I^2 R = \\frac{U^2}{R}$",
+      "x": 150, "y": 550, "width": 300,
+      "color": "#a064f0", "template": "formula", "priority": null,
+      "tags": ["physik", "elektrotechnik"], "favorite": false, "parentId": "cat-latex", "collapsed": false, "attachments": []
+    },
+
+    {
+      "id": "cat-code",
+      "title": "💻 Code & Syntax Highlighting",
+      "content": "## Fenced Code Blocks\nSprache nach ``` angeben:\n\n```c\nvoid uart_init(uint32_t base, uint32_t baud) {\n    uint16_t divisor = CLOCK_FREQ / (16 * baud);\n    outb(base + LCR, 0x80);  // DLAB\n    outb(base + DLL, divisor & 0xFF);\n    outb(base + DLH, divisor >> 8);\n    outb(base + LCR, 0x03);  // 8N1\n}\n```\n\n## Code-Import Button\nImportiert eine Datei direkt als Code-Block mit erkannter Sprache.",
+      "x": 600, "y": 250, "width": 340,
+      "color": "#60c080", "template": "code", "priority": null,
+      "tags": ["code", "programmierung"], "favorite": false, "parentId": "root", "collapsed": false, "attachments": []
+    },
+
+    {
+      "id": "cat-mermaid",
+      "title": "📊 Mermaid-Diagramme",
+      "content": "## Syntax\nIn einem Code-Block mit Sprache `mermaid`:\n\n```mermaid\ngraph TD\n    Power[Power On] --> SEC[SEC Phase]\n    SEC --> PEI[PEI - Memory Init]\n    PEI --> DXE[DXE - Drivers]\n    DXE --> BDS[BDS - Boot Device]\n    BDS --> Payload[Payload / OS]\n```\n\n## Anwendung\n- Boot-Prozess visualisieren\n- Zustandsdiagramme für FSMs\n- Sequenzdiagramme für Protokolle\n- Klassen-/Architektur-Diagramme",
+      "x": 1000, "y": 250, "width": 340,
+      "color": "#f0c864", "template": "concept", "priority": null,
+      "tags": ["diagramm", "mermaid", "visualisierung"], "favorite": false, "parentId": "root", "collapsed": false, "attachments": []
+    },
+
+    {
+      "id": "cat-config",
+      "title": "⚙️ Config-Import",
+      "content": "## Unterstützte Formate\n- `.config` / `.defconfig` (Kconfig/Coreboot)\n- `.ini` / `.cfg` (Sektions-basiert)\n- `.toml` / `.yaml`\n- `.env` / `.properties`\n\n## Was passiert beim Import?\n1. Datei wird geparst\n2. Root-Node mit Dateiname wird erstellt\n3. Für jede Sektion entsteht ein Kind-Node\n4. Key/Value-Paare werden als **Tabelle** angezeigt\n\n## Anwendung\n- Coreboot `.config` analysieren\n- Libreboot defconfig vergleichen\n- Kernel-Konfigurationen dokumentieren",
+      "x": 1300, "y": 250, "width": 320,
+      "color": "#b0b060", "template": "config", "priority": "high",
+      "tags": ["config", "coreboot", "libreboot"], "favorite": true, "parentId": "root", "collapsed": false, "attachments": []
+    },
+
+    {
+      "id": "cat-templates",
+      "title": "🎨 Node-Templates",
+      "content": "## Verfügbare Templates\n\n| Template | Icon | Ideal für |\n| --- | --- | --- |\n| Idee | 💡 | Brainstorming |\n| Aufgabe | ☑️ | To-dos |\n| Frage | ❓ | Offene Punkte |\n| Pro/Contra | ⚖️ | Vergleiche |\n| Notiz | 📝 | Allgemeine Notizen |\n| Formel | 🧮 | Mathe/Physik |\n| Hardware | 🔧 | Register, ICs |\n| Konzept | 🧠 | Theorie-Erklärungen |\n| Config | ⚙️ | Konfigurationswerte |\n| Code | 💻 | Quellcode |",
+      "x": 50, "y": -200, "width": 340,
+      "color": "#f064c8", "template": null, "priority": null,
+      "tags": ["templates", "organisation"], "favorite": false, "parentId": "root", "collapsed": false, "attachments": []
+    },
+
+    {
+      "id": "cat-structure",
+      "title": "🗂️ Struktur-Features",
+      "content": "## Hierarchie & Navigation\n- **Kind-Nodes**: Eltern-Kind-Beziehung, einklappbar\n- **Gruppen**: Visuelle Gruppierung (Ctrl+G)\n- **Sub-Maps**: Verschachtelte Mindmaps\n- **Breadcrumbs**: Navigation zwischen Maps\n\n## Suche & Filter\n- Volltextsuche über Titel, Inhalt, Tags\n- Filtern nach Farbe, Tag, Favoriten\n- Suche über alle Maps hinweg\n\n## Verbindungen\n- Gerichtete/bidirektionale Kanten\n- Labels, Farben, Stile (solid/dashed/dotted)\n- Pfad-Highlighting zwischen 2 Nodes (P)",
+      "x": 500, "y": -200, "width": 320,
+      "color": "#64f0c8", "template": "concept", "priority": null,
+      "tags": ["navigation", "struktur"], "favorite": false, "parentId": "root", "collapsed": false, "attachments": []
+    },
+
+    {
+      "id": "cat-export",
+      "title": "📤 Export & Import",
+      "content": "## Export-Formate\n- **JSON**: Vollständiger Export, re-importierbar\n- **PDF**: Druckbare Zusammenfassung\n- **Markdown**: Für Docs, READMEs\n\n## Import\n- **JSON**: Mindmap-Daten\n- **Code**: Quellcode-Dateien → Code-Node\n- **Config**: Konfigurationsdateien → Node-Baum\n- **URL**: Webseite → Node\n\n## Speichern-unter Dialog\nNativer Windows-Dialog für Speicherort & Dateiname",
+      "x": 1050, "y": -200, "width": 300,
+      "color": "#f0c864", "template": "note", "priority": null,
+      "tags": ["export", "import"], "favorite": false, "parentId": "root", "collapsed": false, "attachments": []
+    },
+
+    {
+      "id": "usecase-coreboot",
+      "title": "🖥️ Anwendung: Coreboot/Libreboot",
+      "content": "## Workflow\n1. `.config` importieren → Config-Button\n2. Konzept-Nodes für Boot-Phasen anlegen\n3. Mermaid-Diagramm für Boot-Flow\n4. Code-Dateien importieren (romstage.c etc.)\n5. Hardware-Nodes für Chipsets/ICs\n6. Verbindungen zwischen Komponenten\n\n## Beispiel-Tags\n`coreboot` `x86` `SPI` `CBFS` `ramstage`\n\n- [ ] Board-Config analysiert\n- [ ] Payload gewählt\n- [ ] Flash-Chip identifiziert\n- [ ] Erfolgreich geflasht",
+      "x": 1500, "y": 550, "width": 320,
+      "color": "#f09050", "template": "hardware", "priority": "high",
+      "tags": ["coreboot", "libreboot", "firmware"], "favorite": true, "parentId": "cat-config", "collapsed": false, "attachments": []
+    },
+    {
+      "id": "usecase-math",
+      "title": "📐 Anwendung: Mathe & Physik",
+      "content": "## Workflow\n1. Themen-Hierarchie aufbauen (Analysis → Integration → ...)\n2. Formel-Nodes mit LaTeX\n3. Tabellen für Konstanten\n4. Checkboxen für Lernfortschritt\n5. Verbindungen für Zusammenhänge\n\n## Beispiel: Ableitungsregeln\n$\\frac{d}{dx}[f \\cdot g] = f' \\cdot g + f \\cdot g'$\n\n$\\frac{d}{dx}[f(g(x))] = f'(g(x)) \\cdot g'(x)$\n\n- [x] Grundlagen verstanden\n- [x] Kettenregel\n- [ ] Partielle Integration\n- [ ] Mehrfachintegrale",
+      "x": 150, "y": 850, "width": 320,
+      "color": "#a064f0", "template": "formula", "priority": "medium",
+      "tags": ["mathe", "physik", "lernen"], "favorite": true, "parentId": "cat-latex", "collapsed": false, "attachments": []
+    },
+    {
+      "id": "usecase-arch",
+      "title": "🔧 Anwendung: Computerarchitektur",
+      "content": "## Workflow\n1. Hardware-Nodes für CPU-Komponenten\n2. Register-Maps als Tabellen\n3. Code-Import für Treiber/BSP-Code\n4. Mermaid für Pipeline-Diagramme\n5. Konzept-Nodes für Theorie (Caching, MMU, etc.)\n\n## Beispiel: x86 Register\n| Register | Bits | Funktion |\n| --- | --- | --- |\n| EAX | 32 | Accumulator |\n| ESP | 32 | Stack Pointer |\n| CR0 | 32 | Control (PE, PG) |\n| CR3 | 32 | Page Directory |",
+      "x": 750, "y": 550, "width": 320,
+      "color": "#f09050", "template": "hardware", "priority": "medium",
+      "tags": ["architektur", "hardware", "x86"], "favorite": false, "parentId": "cat-code", "collapsed": false, "attachments": []
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "root", "target": "cat-markdown", "label": "", "color": "#555", "style": "solid", "weight": 2, "bidirectional": false },
+    { "id": "e2", "source": "root", "target": "cat-latex", "label": "", "color": "#555", "style": "solid", "weight": 2, "bidirectional": false },
+    { "id": "e3", "source": "root", "target": "cat-code", "label": "", "color": "#555", "style": "solid", "weight": 2, "bidirectional": false },
+    { "id": "e4", "source": "root", "target": "cat-mermaid", "label": "", "color": "#555", "style": "solid", "weight": 2, "bidirectional": false },
+    { "id": "e5", "source": "root", "target": "cat-config", "label": "", "color": "#555", "style": "solid", "weight": 2, "bidirectional": false },
+    { "id": "e6", "source": "root", "target": "cat-templates", "label": "", "color": "#555", "style": "solid", "weight": 2, "bidirectional": false },
+    { "id": "e7", "source": "root", "target": "cat-structure", "label": "", "color": "#555", "style": "solid", "weight": 2, "bidirectional": false },
+    { "id": "e8", "source": "root", "target": "cat-export", "label": "", "color": "#555", "style": "solid", "weight": 2, "bidirectional": false },
+    { "id": "e9", "source": "cat-markdown", "target": "feat-tables", "label": "", "color": "#444", "style": "solid", "weight": 1, "bidirectional": false },
+    { "id": "e10", "source": "cat-markdown", "target": "feat-checkbox", "label": "", "color": "#444", "style": "solid", "weight": 1, "bidirectional": false },
+    { "id": "e11", "source": "cat-markdown", "target": "feat-images", "label": "", "color": "#444", "style": "solid", "weight": 1, "bidirectional": false },
+    { "id": "e12", "source": "cat-latex", "target": "feat-latex-physics", "label": "", "color": "#444", "style": "solid", "weight": 1, "bidirectional": false },
+    { "id": "e13", "source": "cat-config", "target": "usecase-coreboot", "label": "ideal für", "color": "#f09050", "style": "dashed", "weight": 2, "bidirectional": false },
+    { "id": "e14", "source": "cat-latex", "target": "usecase-math", "label": "ideal für", "color": "#a064f0", "style": "dashed", "weight": 2, "bidirectional": false },
+    { "id": "e15", "source": "cat-code", "target": "usecase-arch", "label": "ideal für", "color": "#f09050", "style": "dashed", "weight": 2, "bidirectional": false },
+    { "id": "e16", "source": "feat-tables", "target": "usecase-arch", "label": "Register-Maps", "color": "#555", "style": "dotted", "weight": 1, "bidirectional": true },
+    { "id": "e17", "source": "cat-mermaid", "target": "usecase-coreboot", "label": "Boot-Flow", "color": "#555", "style": "dotted", "weight": 1, "bidirectional": true },
+    { "id": "e18", "source": "feat-checkbox", "target": "usecase-math", "label": "Lernfortschritt", "color": "#555", "style": "dotted", "weight": 1, "bidirectional": true },
+    { "id": "e19", "source": "cat-mermaid", "target": "usecase-arch", "label": "Pipelines", "color": "#555", "style": "dotted", "weight": 1, "bidirectional": true }
+  ],
+  "groups": [
+    { "id": "grp-usecases", "name": "Deine Anwendungsfälle", "color": "#f09050" }
+  ]
+}
