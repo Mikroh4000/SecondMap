@@ -175,9 +175,13 @@ async function applyUndoRedo(action, isUndo) {
       const n = state.nodes.find(x => x.id === action.id);
       if (n) {
         n.width = isUndo ? action.oldWidth : action.newWidth;
+        n.height = isUndo ? (action.oldHeight || null) : (action.newHeight || null);
         await saveNode(n);
         const el = nodesLayer.querySelector(`[data-id="${n.id}"]`);
-        if (el) el.style.width = (n.width || 220) + 'px';
+        if (el) {
+          el.style.width = (n.width || 220) + 'px';
+          el.style.height = n.height ? n.height + 'px' : '';
+        }
       }
       break;
     }
@@ -956,6 +960,7 @@ function createNodeEl(node) {
   el.style.left = node.x + 'px';
   el.style.top = node.y + 'px';
   el.style.width = (node.width || 220) + 'px';
+  if (node.height) el.style.height = node.height + 'px';
 
   const tpl = node.template && NODE_TEMPLATES[node.template];
   const pri = node.priority && PRIORITIES[node.priority];
@@ -1016,6 +1021,7 @@ function renderNode(node) {
     el.style.left = node.x + 'px';
     el.style.top = node.y + 'px';
     el.style.width = (node.width || 220) + 'px';
+    el.style.height = node.height ? node.height + 'px' : '';
     const dot = el.querySelector('.node-color-dot');
     if (dot) dot.style.background = node.color || NODE_COLORS[0];
     const body = $('body-' + node.id);
@@ -1479,7 +1485,9 @@ function onResizeMouseDown(e, id) {
   e.preventDefault(); e.stopPropagation();
   const n = state.nodes.find(x => x.id === id);
   if (!n) return;
-  state.resizing = { id, startWidth: n.width || 220, startX: e.clientX };
+  const el = nodesLayer.querySelector(`[data-id="${id}"]`);
+  const currentHeight = el ? el.offsetHeight : (n.height || 0);
+  state.resizing = { id, startWidth: n.width || 220, startX: e.clientX, startHeight: currentHeight, startY: e.clientY };
 }
 
 canvasWrap.addEventListener('mousedown', e => {
@@ -1526,11 +1534,17 @@ document.addEventListener('mousemove', e => {
   // Resize
   if (state.resizing) {
     const dx = (e.clientX - state.resizing.startX) / state.transform.scale;
+    const dy = (e.clientY - state.resizing.startY) / state.transform.scale;
     const n = state.nodes.find(x => x.id === state.resizing.id);
     if (n) {
-      n.width = Math.max(150, Math.min(600, state.resizing.startWidth + dx));
+      n.width = Math.max(150, Math.min(800, state.resizing.startWidth + dx));
+      const newHeight = state.resizing.startHeight + dy;
+      n.height = newHeight > 80 ? Math.round(newHeight) : null;
       const el = nodesLayer.querySelector(`[data-id="${n.id}"]`);
-      if (el) el.style.width = n.width + 'px';
+      if (el) {
+        el.style.width = n.width + 'px';
+        el.style.height = n.height ? n.height + 'px' : '';
+      }
       renderEdges();
     }
     return;
@@ -1607,8 +1621,10 @@ document.addEventListener('mouseup', async e => {
     const n = state.nodes.find(x => x.id === state.resizing.id);
     if (n) {
       const newWidth = n.width || 220;
-      if (newWidth !== state.resizing.startWidth) {
-        pushUndo({ type: 'resize-node', id: n.id, oldWidth: state.resizing.startWidth, newWidth });
+      const oldHeight = state.resizing.startHeight > 0 ? state.resizing.startHeight : null;
+      const newHeight = n.height || null;
+      if (newWidth !== state.resizing.startWidth || newHeight !== oldHeight) {
+        pushUndo({ type: 'resize-node', id: n.id, oldWidth: state.resizing.startWidth, newWidth, oldHeight, newHeight });
       }
       await saveNode(n);
       await updateMapTimestamp();
@@ -2139,6 +2155,10 @@ function openEdit(id) {
         <div class="form-group">
           <label class="form-label">Inhalt (Markdown, Links erlaubt)</label>
           <textarea class="form-textarea" id="edit-content" placeholder="Inhalt...">${escHtml(n.content || '')}</textarea>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+            <button class="tb-btn" id="edit-insert-image-btn" style="font-size:12px">🖼 Bild einfügen</button>
+            <span class="form-hint">PNG/JPG als Inline-Bild (max. 2 MB)</span>
+          </div>
         </div>
         <div class="form-row">
           <div class="form-group" style="flex:1">
@@ -2245,6 +2265,29 @@ function openEdit(id) {
       tagInput.value = '';
     }
     e.stopPropagation();
+  });
+
+  // Insert inline image into content
+  backdrop.querySelector('#edit-insert-image-btn').addEventListener('click', () => {
+    const imgInput = document.createElement('input');
+    imgInput.type = 'file';
+    imgInput.accept = 'image/png,image/jpeg,image/gif,image/webp';
+    imgInput.onchange = async (ev) => {
+      const file = ev.target.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) { showToast('Bild zu groß (max. 2 MB)'); return; }
+      const data = await fileToBase64(file);
+      const markdown = `![${file.name}](${data})`;
+      const ta = backdrop.querySelector('#edit-content');
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const before = ta.value.substring(0, start);
+      const after = ta.value.substring(end);
+      ta.value = before + (before && !before.endsWith('\n') ? '\n' : '') + markdown + (after && !after.startsWith('\n') ? '\n' : '') + after;
+      ta.selectionStart = ta.selectionEnd = start + markdown.length;
+      ta.focus();
+    };
+    imgInput.click();
   });
 
   // Attachments

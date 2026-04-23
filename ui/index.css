@@ -339,6 +339,8 @@
     cursor: grab;
     user-select: none;
     transition: border-color 0.15s, box-shadow 0.15s;
+    display: flex;
+    flex-direction: column;
   }
   .node:hover { border-color: var(--border2); }
   .node.selected { border-color: var(--node-selected); box-shadow: 0 0 0 3px rgba(200,240,100,0.12); }
@@ -402,9 +404,10 @@
     color: var(--text2);
     font-family: var(--font-mono);
     min-height: 48px;
-    max-height: 140px;
     overflow-y: auto;
     word-break: break-word;
+    flex: 1;
+    min-height: 0;
   }
   .node-body a { color: var(--link); text-decoration: underline; cursor: pointer; }
   .node-body a:hover { color: var(--accent); }
