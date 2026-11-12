@@ -36,7 +36,7 @@ async function addNode(x, y, opts = {}) {
     content: opts.content || '',
     x: x ?? 80 + Math.random() * 400,
     y: y ?? 80 + Math.random() * 300,
-    width: opts.width || 220,
+    width: opts.width || settings.defaultNodeWidth,
     color: opts.color || (tpl ? tpl.color : NODE_COLORS[state.nodes.length % NODE_COLORS.length]),
     template: opts.template || null,
     priority: opts.priority || null,

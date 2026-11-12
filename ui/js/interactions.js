@@ -278,7 +278,8 @@ canvasWrap.addEventListener('wheel', e => {
   e.preventDefault();
   const target = e.target.closest('.node-body');
   if (target) { target.scrollTop += e.deltaY; return; }
-  const delta = e.deltaY > 0 ? 0.95 : 1.05;
+  const step = settings.zoomStep / 100;
+  const delta = e.deltaY > 0 ? 1 - step : 1 + step;
   smoothZoom(delta, e.clientX, e.clientY);
 }, { passive: false });
 
@@ -289,6 +290,11 @@ function smoothZoom(delta, clientX, clientY) {
   const actualDelta = newScale / state.transform.scale;
   const targetX = mx - (mx - state.transform.x) * actualDelta;
   const targetY = my - (my - state.transform.y) * actualDelta;
+  if (!settings.smoothZoom) {
+    state.transform.x = targetX; state.transform.y = targetY; state.transform.scale = newScale;
+    applyTransform();
+    return;
+  }
   const startX = state.transform.x, startY = state.transform.y, startScale = state.transform.scale;
   const duration = 120, startTime = performance.now();
   function step(now) {

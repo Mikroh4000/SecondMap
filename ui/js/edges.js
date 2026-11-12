@@ -15,8 +15,9 @@ function buildEdgeRecord(edge, graphMode, isHighlighted) {
   const g = document.createElementNS(SVG_NS, 'g');
   g.dataset.edgeId = edge.id;
 
-  const baseWidth = 1 + (edge.weight || 1) * 0.5;
-  const strokeColor = isHighlighted ? '#c8f064' : (edge.color || '#444');
+  const baseWidth = (1 + (edge.weight || 1) * 0.5) * settings.edgeWidth;
+  const strokeColor = isHighlighted ? activePalette.accent : resolveEdgeColor(edge.color);
+  const arrows = settings.edgeArrows;
   const strokeWidth = isHighlighted ? baseWidth + 1.5 : baseWidth;
 
   let dashArray = '';
@@ -28,21 +29,24 @@ function buildEdgeRecord(edge, graphMode, isHighlighted) {
   path.setAttribute('stroke-width', strokeWidth.toString());
   path.setAttribute('fill', 'none');
   path.classList.add('edge-line');
-  path.setAttribute('marker-end', isHighlighted ? 'url(#arrow-hover)' : 'url(#arrow)');
   if (dashArray) path.setAttribute('stroke-dasharray', dashArray);
-  if (edge.bidirectional) path.setAttribute('marker-start', isHighlighted ? 'url(#arrow-start-hover)' : 'url(#arrow-start)');
   if (isHighlighted) g.classList.add('edge-path-highlighted');
   path.style.cursor = 'pointer';
 
+  const setMarkers = active => {
+    if (!arrows) return;
+    path.setAttribute('marker-end', active ? 'url(#arrow-hover)' : 'url(#arrow)');
+    if (edge.bidirectional) path.setAttribute('marker-start', active ? 'url(#arrow-start-hover)' : 'url(#arrow-start)');
+  };
+  setMarkers(isHighlighted);
+
   path.addEventListener('mouseenter', () => {
-    path.setAttribute('stroke', '#c8f064');
-    path.setAttribute('marker-end', 'url(#arrow-hover)');
-    if (edge.bidirectional) path.setAttribute('marker-start', 'url(#arrow-start-hover)');
+    path.setAttribute('stroke', activePalette.accent);
+    setMarkers(true);
   });
   path.addEventListener('mouseleave', () => {
     path.setAttribute('stroke', strokeColor);
-    path.setAttribute('marker-end', isHighlighted ? 'url(#arrow-hover)' : 'url(#arrow)');
-    if (edge.bidirectional) path.setAttribute('marker-start', isHighlighted ? 'url(#arrow-start-hover)' : 'url(#arrow-start)');
+    setMarkers(isHighlighted);
   });
 
   const openEd = () => openEdgeEdit(edge.id);
@@ -62,15 +66,15 @@ function buildEdgeRecord(edge, graphMode, isHighlighted) {
   const rec = { g, path, hit: hitPath, d: '', bg: null, text: null, labelKey: '' };
 
   // Labels are hidden in graph mode, so they are not even created there.
-  const label = graphMode ? '' : (edge.label ?? '').toString().trim();
+  const label = (graphMode || !settings.edgeShowLabels) ? '' : (edge.label ?? '').toString().trim();
   if (label) {
     const textLen = Math.max(24, label.length * 7 + 16);
     const bgRect = document.createElementNS(SVG_NS, 'rect');
     bgRect.setAttribute('width', textLen.toString());
     bgRect.setAttribute('height', '20');
     bgRect.setAttribute('rx', '4');
-    bgRect.setAttribute('fill', '#1a1a1a');
-    bgRect.setAttribute('stroke', '#2e2e2e');
+    bgRect.setAttribute('fill', activePalette.surface);
+    bgRect.setAttribute('stroke', activePalette.border);
     bgRect.setAttribute('stroke-width', '1');
     bgRect.style.pointerEvents = 'auto';
     bgRect.style.cursor = 'pointer';
@@ -81,7 +85,7 @@ function buildEdgeRecord(edge, graphMode, isHighlighted) {
     text.setAttribute('dominant-baseline', 'central');
     text.setAttribute('font-family', 'IBM Plex Mono, monospace');
     text.setAttribute('font-size', '11');
-    text.setAttribute('fill', '#8a8780');
+    text.setAttribute('fill', activePalette.text2);
     text.style.pointerEvents = 'auto';
     text.style.cursor = 'pointer';
     text.textContent = label;
@@ -100,6 +104,8 @@ function renderEdges() {
   const nodeMap = buildNodeMap();
   const hidden = computeHiddenSet(nodeMap);
   const seen = new Set();
+  const settingsKey = edgeSettingsKey();
+  const straight = graphMode || settings.edgeStyle === 'straight';
   let structural = false;
 
   for (const edge of state.edges) {
@@ -110,7 +116,7 @@ function renderEdges() {
 
       const isHighlighted = !!(state.highlightedEdges && state.highlightedEdges.has(edge.id));
       const sig = [edge.source, edge.target, edge.color, edge.style, edge.weight, edge.bidirectional,
-        edge.label, isHighlighted, graphMode].join('|');
+        edge.label, isHighlighted, graphMode, settingsKey].join('|');
       let rec = edgeRecs.get(edge.id);
       if (!rec || rec.sig !== sig || !rec.g.isConnected) {
         if (rec) rec.g.remove();
@@ -126,7 +132,7 @@ function renderEdges() {
       const tx = tn.x + tsz.w / 2, ty = tn.y + tsz.h / 2;
       const cx1 = sx + (tx - sx) * 0.3, cy1 = sy;
       const cx2 = sx + (tx - sx) * 0.7, cy2 = ty;
-      const d = graphMode
+      const d = straight
         ? `M${sx},${sy} L${tx},${ty}`
         : `M${sx},${sy} C${cx1},${cy1} ${cx2},${cy2} ${tx},${ty}`;
       if (rec.d !== d) {
@@ -134,8 +140,8 @@ function renderEdges() {
         rec.path.setAttribute('d', d);
         rec.hit.setAttribute('d', d);
         if (rec.bg) {
-          const mx = 0.125 * sx + 0.375 * cx1 + 0.375 * cx2 + 0.125 * tx;
-          const my = 0.125 * sy + 0.375 * cy1 + 0.375 * cy2 + 0.125 * ty;
+          const mx = straight ? (sx + tx) / 2 : 0.125 * sx + 0.375 * cx1 + 0.375 * cx2 + 0.125 * tx;
+          const my = straight ? (sy + ty) / 2 : 0.125 * sy + 0.375 * cy1 + 0.375 * cy2 + 0.125 * ty;
           rec.bg.setAttribute('x', (mx - rec.textLen / 2).toString());
           rec.bg.setAttribute('y', (my - 10).toString());
           rec.text.setAttribute('x', mx.toString());

@@ -1,8 +1,8 @@
 // Viewport: pan/zoom transform, graph (zoom-out) mode, fit-to-view and minimap.
 
 // ─── TRANSFORM ───────────────────────────────────────────────────
-const GRAPH_ENTER_SCALE = 0.4;
-const GRAPH_EXIT_SCALE = 0.46;
+// The graph view is left slightly above the zoom level it is entered at, so it does not flicker.
+const GRAPH_EXIT_MARGIN = 0.06;
 let graphMode = false;
 let interactTimer = null;
 
@@ -10,7 +10,8 @@ let interactTimer = null;
 // Node contents are display:none there, so heights are frozen first to keep edge anchors stable.
 function updateGraphMode() {
   const s = state.transform.scale;
-  const now = graphMode ? s < GRAPH_EXIT_SCALE : s < GRAPH_ENTER_SCALE;
+  const enter = settings.graphModeThreshold;
+  const now = settings.graphModeEnabled && (graphMode ? s < enter + GRAPH_EXIT_MARGIN : s < enter);
   if (now !== graphMode) {
     graphMode = now;
     if (now) {
@@ -49,6 +50,7 @@ function applyTransform() {
   clearTimeout(interactTimer);
   interactTimer = setTimeout(() => canvasWrap.classList.remove('interacting'), 180);
   updateGraphMode();
+  updateCanvasGrid();
   const t = `translate(${state.transform.x}px, ${state.transform.y}px) scale(${state.transform.scale})`;
   nodesLayer.style.transform = t; nodesLayer.style.transformOrigin = '0 0';
   const el = $('edges-layer');
@@ -91,6 +93,7 @@ function drawMinimap() {
 function paintMinimap() {
   const W = 140, H = 90;
   mmCtx.clearRect(0, 0, W, H);
+  if (!settings.showMinimap) return;
   if (state.nodes.length === 0) return;
   const nodeMap = buildNodeMap();
   const hidden = computeHiddenSet(nodeMap);
@@ -117,7 +120,7 @@ function paintMinimap() {
     else mmCtx.setLineDash([]);
     mmCtx.moveTo(pad + (s.x + (s.width||220)/2 - minX) * sc, pad + (s.y + 40 - minY) * sc);
     mmCtx.lineTo(pad + (t.x + (t.width||220)/2 - minX) * sc, pad + (t.y + 40 - minY) * sc);
-    mmCtx.strokeStyle = isHL ? '#c8f064' : '#444';
+    mmCtx.strokeStyle = isHL ? activePalette.accent : activePalette.edge;
     mmCtx.lineWidth = Math.max(1, (edge.weight || 1) * 0.5 + 0.5);
     mmCtx.stroke();
     mmCtx.setLineDash([]);
@@ -125,7 +128,7 @@ function paintMinimap() {
   for (const n of visibleNodes) {
     const x = pad + (n.x - minX) * sc, y = pad + (n.y - minY) * sc;
     const w = Math.max(8, (n.width||220) * sc), h = Math.max(4, 80 * sc);
-    mmCtx.fillStyle = n.color || '#444'; mmCtx.globalAlpha = 0.6;
+    mmCtx.fillStyle = n.color || activePalette.edge; mmCtx.globalAlpha = 0.6;
     mmCtx.beginPath(); mmCtx.roundRect(x, y, w, h, 2); mmCtx.fill();
     mmCtx.globalAlpha = 1;
   }

@@ -32,6 +32,7 @@ async function switchToMap(mapId) {
   edgesGroup.innerHTML = '';
   state.nodes = []; state.edges = []; state.groups = [];
   state.selectedNodes.clear();
+  state.expandedNodes.clear();
   state.connectSource = null;
   state.dragging = null;
   state.resizing = null;

@@ -5,7 +5,6 @@ function createNodeEl(node) {
   const el = document.createElement('div');
   el.className = 'node';
   el.dataset.id = node.id;
-  el._content = node.content;
   nodeEls.set(node.id, el);
   nodeSizes.delete(node.id);
   nodeResizeObserver.observe(el);
@@ -41,7 +40,7 @@ function createNodeEl(node) {
         </button>
       </div>
     </div>
-    <div class="node-body" id="body-${node.id}">${renderMarkdown(node.content)}</div>
+    <div class="node-body" id="body-${node.id}"></div>
     ${tagsHtml}
     ${attachHtml}
     <div class="node-connect-handle" title="Verbinden" data-id="${node.id}"></div>
@@ -49,6 +48,7 @@ function createNodeEl(node) {
     <div class="node-graph-dot"><span class="node-graph-label">${escHtml(node.title || '')}</span></div>
   `;
   el.style.setProperty('--node-color', node.color || NODE_COLORS[0]);
+  renderNodeBody(el, node);
 
   const titleInput = el.querySelector('.node-title');
   titleInput.addEventListener('change', async () => {
@@ -84,12 +84,7 @@ function renderNode(node) {
     el.style.setProperty('--node-color', node.color || NODE_COLORS[0]);
     const graphLabel = el.querySelector('.node-graph-label');
     if (graphLabel) graphLabel.textContent = node.title || '';
-    const body = $('body-' + node.id);
-    if (body && el._content !== node.content) {
-      body.innerHTML = renderMarkdown(node.content);
-      el._content = node.content;
-      renderMermaidBlocks(body);
-    }
+    renderNodeBody(el, node);
     const titleInput = el.querySelector('.node-title');
     if (titleInput && document.activeElement !== titleInput) titleInput.value = node.title || '';
     // Update favorite star
@@ -105,7 +100,7 @@ function renderNode(node) {
         tagsEl.className = 'node-tags';
         tagsEl.innerHTML = tagsHtml;
         const bodyEl = el.querySelector('.node-body');
-        if (bodyEl) bodyEl.after(tagsEl);
+        if (bodyEl) (el.querySelector('.node-more-btn') || bodyEl).after(tagsEl);
       }
     } else if (tagsEl) { tagsEl.remove(); }
     // Update attachments bar

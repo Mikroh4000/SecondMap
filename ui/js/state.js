@@ -9,6 +9,7 @@ let state = {
   mode: 'normal',
   connectSource: null,
   selectedNodes: new Set(),
+  expandedNodes: new Set(), // nodes whose full content is shown inline (see node-preview.js)
   dragging: null,
   dragOffset: { x: 0, y: 0 },
   dragStartPositions: null,

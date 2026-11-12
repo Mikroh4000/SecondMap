@@ -1,19 +1,36 @@
 // Markdown/LaTeX/Mermaid rendering for node bodies.
 
 // ─── MARKDOWN RENDERER ───────────────────────────────────────────
+function imagePlaceholder(alt) {
+  return `<span class="md-img-off">🖼 ${alt || 'Bild'}</span>`;
+}
+
 function renderMarkdown(text) {
   if (!text) return '<span style="color:var(--border2);font-style:italic">Kein Inhalt</span>';
 
   const placeholders = [];
   let phIdx = 0;
 
+  // Extract mermaid blocks ```mermaid\n...\n``` (before generic code blocks, which would swallow them)
+  text = text.replace(/```mermaid\n([\s\S]*?)```/g, (_, diagram) => {
+    const key = `__MDPH${phIdx++}__`;
+    if (settings.renderMermaid) {
+      const id = 'mermaid-' + Date.now() + '-' + phIdx;
+      placeholders.push(`<div class="mermaid-block" data-mermaid="${btoa(unescape(encodeURIComponent(diagram.trim())))}" id="${id}"></div>`);
+    } else {
+      const escaped = diagram.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      placeholders.push(`<div class="code-block"><span class="code-lang-label">mermaid</span><pre><code>${escaped}</code></pre></div>`);
+    }
+    return key;
+  });
+
   // Extract fenced code blocks ```lang\ncode\n```
   text = text.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
     const key = `__MDPH${phIdx++}__`;
     let highlighted;
-    if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+    if (settings.highlightCode && typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
       highlighted = hljs.highlight(code.trimEnd(), { language: lang }).value;
-    } else if (typeof hljs !== 'undefined' && code.trim()) {
+    } else if (settings.highlightCode && typeof hljs !== 'undefined' && code.trim()) {
       highlighted = hljs.highlightAuto(code.trimEnd()).value;
     } else {
       highlighted = code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -23,18 +40,10 @@ function renderMarkdown(text) {
     return key;
   });
 
-  // Extract mermaid blocks ```mermaid\n...\n```
-  text = text.replace(/```mermaid\n([\s\S]*?)```/g, (_, diagram) => {
-    const key = `__MDPH${phIdx++}__`;
-    const id = 'mermaid-' + Date.now() + '-' + phIdx;
-    placeholders.push(`<div class="mermaid-block" data-mermaid="${btoa(unescape(encodeURIComponent(diagram.trim())))}" id="${id}"></div>`);
-    return key;
-  });
-
   // Extract display LaTeX $$...$$
   text = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, formula) => {
     const key = `__MDPH${phIdx++}__`;
-    if (typeof katex !== 'undefined') {
+    if (settings.renderMath && typeof katex !== 'undefined') {
       try { placeholders.push(`<div class="latex-block">${katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false })}</div>`); }
       catch(e) { placeholders.push(`<div class="latex-block latex-error">${formula.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>`); }
     } else { placeholders.push(`<div class="latex-block">$$${formula}$$</div>`); }
@@ -44,7 +53,7 @@ function renderMarkdown(text) {
   // Extract inline LaTeX $...$
   text = text.replace(/\$([^\$\n]+?)\$/g, (_, formula) => {
     const key = `__MDPH${phIdx++}__`;
-    if (typeof katex !== 'undefined') {
+    if (settings.renderMath && typeof katex !== 'undefined') {
       try { placeholders.push(katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false })); }
       catch(e) { placeholders.push(`<span class="latex-error">${formula.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</span>`); }
     } else { placeholders.push(`$${formula}$`); }
@@ -84,8 +93,8 @@ function renderMarkdown(text) {
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
     .replace(/~~(.+?)~~/g, '<s>$1</s>')
     .replace(/`(.+?)`/g, '<code>$1</code>')
-    .replace(/!\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/g, (_, alt, src) => `<img class="md-img" src="${src}" alt="${alt.replace(/"/g,'&quot;')}" loading="lazy" onclick="event.stopPropagation();window.open('${src}','_blank','noopener')"/>`)
-    .replace(/!\[([^\]]*)\]\((data:[^\)]+)\)/g, (_, alt, src) => `<img class="md-img" src="${src}" alt="${alt.replace(/"/g,'&quot;')}" loading="lazy"/>`)
+    .replace(/!\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/g, (_, alt, src) => !settings.showImages ? imagePlaceholder(alt) : `<img class="md-img" src="${src}" alt="${alt.replace(/"/g,'&quot;')}" loading="lazy" onclick="event.stopPropagation();window.open('${src}','_blank','noopener')"/>`)
+    .replace(/!\[([^\]]*)\]\((data:[^\)]+)\)/g, (_, alt, src) => !settings.showImages ? imagePlaceholder(alt) : `<img class="md-img" src="${src}" alt="${alt.replace(/"/g,'&quot;')}" loading="lazy"/>`)
     .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, (_, l, u) => `<a href="${u}" data-url="${u}" onclick="openLink(event)">${l}</a>`)
     .replace(/\[([^\]]+)\]\((file:\/\/[^\)]+)\)/g, (_, l, u) => `<a href="${u}" data-url="${u}" onclick="openLink(event)">${l}</a>`)
     .replace(/(https?:\/\/[^\s<]+)/g, u => `<a href="${u}" data-url="${u}" onclick="openLink(event)">${u}</a>`);

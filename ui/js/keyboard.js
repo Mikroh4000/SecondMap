@@ -5,6 +5,8 @@ document.addEventListener('keydown', async e => {
   // Undo/Redo (works even in inputs)
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); await undo(); return; }
   if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); await redo(); return; }
+  // Settings
+  if ((e.ctrlKey || e.metaKey) && e.key === ',') { e.preventDefault(); openSettings(); return; }
   // Search
   if ((e.ctrlKey || e.metaKey) && e.key === 'f') { e.preventDefault(); openSearchPanel(); return; }
   // Copy/Paste (works even in inputs for Ctrl+C/V on canvas)

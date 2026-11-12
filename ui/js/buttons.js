@@ -16,6 +16,9 @@ if ($('btn-redo')) $('btn-redo').addEventListener('click', redo);
 // Template button
 if ($('btn-template')) $('btn-template').addEventListener('click', openTemplateMenu);
 
+// Settings button
+$('btn-settings').addEventListener('click', () => openSettings());
+
 // Search button
 if ($('btn-search')) $('btn-search').addEventListener('click', openSearchPanel);
 
