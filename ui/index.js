@@ -941,7 +941,36 @@ window.openLink = openLink;
 function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 // ─── TRANSFORM ───────────────────────────────────────────────────
+const GRAPH_ENTER_SCALE = 0.4;
+const GRAPH_EXIT_SCALE = 0.46;
+
+// Zoomed far out the map turns into an Obsidian-style graph: dots, thin straight lines, faint labels.
+function updateGraphMode() {
+  const s = state.transform.scale;
+  const was = canvasWrap.classList.contains('graph-mode');
+  const now = was ? s < GRAPH_EXIT_SCALE : s < GRAPH_ENTER_SCALE;
+  canvasWrap.style.setProperty('--inv-scale', (1 / s).toString());
+  canvasWrap.style.setProperty('--label-opacity', Math.max(0, Math.min(1, (s - 0.14) / 0.18)).toFixed(2));
+  if (now !== was) {
+    canvasWrap.classList.toggle('graph-mode', now);
+    renderEdges();
+  }
+}
+
+function updateGraphDotSizes() {
+  const degree = new Map();
+  for (const e of state.edges) {
+    degree.set(e.source, (degree.get(e.source) || 0) + 1);
+    degree.set(e.target, (degree.get(e.target) || 0) + 1);
+  }
+  for (const el of nodesLayer.children) {
+    const size = Math.min(22, 8 + Math.sqrt(degree.get(el.dataset.id) || 0) * 3.5);
+    el.style.setProperty('--dot-size', size.toFixed(1) + 'px');
+  }
+}
+
 function applyTransform() {
+  updateGraphMode();
   const t = `translate(${state.transform.x}px, ${state.transform.y}px) scale(${state.transform.scale})`;
   nodesLayer.style.transform = t; nodesLayer.style.transformOrigin = '0 0';
   const el = $('edges-layer');
@@ -994,12 +1023,17 @@ function createNodeEl(node) {
     ${attachHtml}
     <div class="node-connect-handle" title="Verbinden" data-id="${node.id}"></div>
     <div class="node-resize-handle" data-id="${node.id}"></div>
+    <div class="node-graph-dot"><span class="node-graph-label">${escHtml(node.title || '')}</span></div>
   `;
+  el.style.setProperty('--node-color', node.color || NODE_COLORS[0]);
 
   const titleInput = el.querySelector('.node-title');
   titleInput.addEventListener('change', async () => {
     const n = state.nodes.find(n => n.id === node.id);
     if (n) { n.title = titleInput.value; await saveNode(n); updateMapTimestamp(); }
+  });
+  titleInput.addEventListener('input', () => {
+    el.querySelector('.node-graph-label').textContent = titleInput.value;
   });
   titleInput.addEventListener('mousedown', e => e.stopPropagation());
   titleInput.addEventListener('keydown', e => { if (e.key === 'Enter') titleInput.blur(); e.stopPropagation(); });
@@ -1024,6 +1058,9 @@ function renderNode(node) {
     el.style.height = node.height ? node.height + 'px' : '';
     const dot = el.querySelector('.node-color-dot');
     if (dot) dot.style.background = node.color || NODE_COLORS[0];
+    el.style.setProperty('--node-color', node.color || NODE_COLORS[0]);
+    const graphLabel = el.querySelector('.node-graph-label');
+    if (graphLabel) graphLabel.textContent = node.title || '';
     const body = $('body-' + node.id);
     if (body) { body.innerHTML = renderMarkdown(node.content); renderMermaidBlocks(); }
     const titleInput = el.querySelector('.node-title');
@@ -1306,6 +1343,8 @@ function getNodeCenter(id) {
 
 function renderEdges() {
   edgesGroup.innerHTML = '';
+  const graphMode = canvasWrap.classList.contains('graph-mode');
+  updateGraphDotSizes();
   for (const edge of state.edges) {
     try {
       const s = getNodeCenter(edge.source), t = getNodeCenter(edge.target);
@@ -1316,7 +1355,9 @@ function renderEdges() {
 
       const cx1 = s.x + (t.x - s.x) * 0.3, cy1 = s.y;
       const cx2 = s.x + (t.x - s.x) * 0.7, cy2 = t.y;
-      const d = `M${s.x},${s.y} C${cx1},${cy1} ${cx2},${cy2} ${t.x},${t.y}`;
+      const d = graphMode
+        ? `M${s.x},${s.y} L${t.x},${t.y}`
+        : `M${s.x},${s.y} C${cx1},${cy1} ${cx2},${cy2} ${t.x},${t.y}`;
 
       const weight = edge.weight || 1;
       const baseWidth = 1 + weight * 0.5;
@@ -1333,6 +1374,7 @@ function renderEdges() {
       path.setAttribute('stroke', strokeColor);
       path.setAttribute('stroke-width', strokeWidth.toString());
       path.setAttribute('fill', 'none');
+      path.classList.add('edge-line');
       path.setAttribute('marker-end', isHighlighted ? 'url(#arrow-hover)' : 'url(#arrow)');
       if (dashArray) path.setAttribute('stroke-dasharray', dashArray);
       if (edge.bidirectional) path.setAttribute('marker-start', isHighlighted ? 'url(#arrow-start-hover)' : 'url(#arrow-start)');
@@ -1359,6 +1401,7 @@ function renderEdges() {
       hitPath.setAttribute('stroke', 'transparent');
       hitPath.setAttribute('stroke-width', '12');
       hitPath.setAttribute('fill', 'none');
+      hitPath.classList.add('edge-hit');
       hitPath.style.cursor = 'pointer';
       hitPath.addEventListener('click', openEd);
 

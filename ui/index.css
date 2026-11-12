@@ -1260,10 +1260,98 @@
     margin-left: 4px;
   }
 
+  /* GRAPH MODE (zoomed far out, Obsidian-style): dots, thin straight edges, faint labels.
+     --inv-scale keeps dots, lines and labels at constant screen size. */
+  .node-graph-dot { display: none; }
+
+  .graph-mode .node {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    pointer-events: none;
+    cursor: default;
+  }
+  .node > * { transition: opacity 0.2s; }
+  .graph-mode .node > *:not(.node-graph-dot) { opacity: 0; pointer-events: none; }
+
+  .graph-mode .node-graph-dot {
+    display: block;
+    position: absolute;
+    left: 50%; top: 50%;
+    width: calc(var(--dot-size, 10px) * var(--inv-scale, 1));
+    height: calc(var(--dot-size, 10px) * var(--inv-scale, 1));
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: var(--node-color, #8a8780);
+    opacity: 0.85;
+    pointer-events: auto;
+    cursor: pointer;
+    transition: opacity 0.15s, box-shadow 0.15s;
+  }
+  /* larger invisible hit area around small dots */
+  .graph-mode .node-graph-dot::before {
+    content: '';
+    position: absolute;
+    inset: calc(-5px * var(--inv-scale, 1));
+    border-radius: 50%;
+  }
+  .graph-mode .node:hover .node-graph-dot { opacity: 1; box-shadow: 0 0 calc(10px * var(--inv-scale, 1)) var(--node-color, #8a8780); }
+  .graph-mode .node.selected .node-graph-dot,
+  .graph-mode .node.connect-source .node-graph-dot {
+    opacity: 1;
+    box-shadow: 0 0 0 calc(2px * var(--inv-scale, 1)) var(--bg), 0 0 0 calc(3.5px * var(--inv-scale, 1)) var(--accent);
+  }
+  .graph-mode .node.search-match .node-graph-dot {
+    opacity: 1;
+    box-shadow: 0 0 calc(14px * var(--inv-scale, 1)) calc(3px * var(--inv-scale, 1)) rgba(200,240,100,0.55);
+  }
+
+  .graph-mode .node-graph-label {
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 4px * var(--inv-scale, 1));
+    transform: translateX(-50%);
+    font-family: var(--font-ui);
+    font-size: calc(12px * var(--inv-scale, 1));
+    line-height: 1.2;
+    color: var(--text);
+    opacity: calc(var(--label-opacity, 1) * 0.7);
+    white-space: nowrap;
+    max-width: calc(180px * var(--inv-scale, 1));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-shadow: 0 0 4px var(--bg), 0 0 4px var(--bg);
+    pointer-events: none;
+    transition: opacity 0.15s;
+  }
+  .graph-mode .node:hover .node-graph-label,
+  .graph-mode .node.selected .node-graph-label { opacity: 1; max-width: none; }
+
+  .graph-mode .edge-line {
+    stroke: rgba(255,255,255,0.16) !important;
+    stroke-width: calc(1px * var(--inv-scale, 1)) !important;
+    stroke-dasharray: none !important;
+    marker-start: none !important;
+    marker-end: none !important;
+    transition: stroke 0.15s;
+  }
+  .graph-mode .edge-line:hover { stroke: var(--accent) !important; }
+  .graph-mode .edge-hit { stroke-width: calc(8px * var(--inv-scale, 1)); }
+  .graph-mode .edge-path-highlighted .edge-line {
+    stroke: var(--accent) !important;
+    stroke-width: calc(2px * var(--inv-scale, 1)) !important;
+  }
+  .graph-mode g[data-edge-id] > rect,
+  .graph-mode g[data-edge-id] > text { display: none; }
+
+  .graph-mode .group-box { border-width: 1px; opacity: 0.35; }
+  .graph-mode .group-label { opacity: 0.6; }
+
   /* SEARCH MATCH HIGHLIGHT */
   .node.search-match {
     box-shadow: 0 0 0 3px rgba(200,240,100,0.25), 0 0 12px rgba(200,240,100,0.15);
   }
+  .graph-mode .node.search-match { box-shadow: none; }
 
   /* FAVORITES DROPDOWN */
   .favorites-dropdown {
