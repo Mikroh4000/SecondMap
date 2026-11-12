@@ -154,6 +154,36 @@
 <input type="file" id="file-import-config" accept=".config,.conf,.cfg,.ini,.defconfig,.env,.toml,.yaml,.yml,.properties,.txt" style="display:none">
 <input type="file" id="file-attach" multiple style="display:none">
 
-<script src="index.js"></script>
+<!-- Classic scripts sharing one global scope: the load order below matters (boot.js must be last). -->
+<script src="js/constants.js"></script>
+<script src="js/state.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/performance.js"></script>
+<script src="js/undo-redo.js"></script>
+<script src="js/db.js"></script>
+<script src="js/maps.js"></script>
+<script src="js/folders.js"></script>
+<script src="js/sidebar.js"></script>
+<script src="js/markdown.js"></script>
+<script src="js/viewport.js"></script>
+<script src="js/nodes.js"></script>
+<script src="js/groups.js"></script>
+<script src="js/hierarchy.js"></script>
+<script src="js/edges.js"></script>
+<script src="js/interactions.js"></script>
+<script src="js/operations.js"></script>
+<script src="js/clipboard.js"></script>
+<script src="js/url-import.js"></script>
+<script src="js/edit-modal.js"></script>
+<script src="js/templates.js"></script>
+<script src="js/import-export.js"></script>
+<script src="js/file-import.js"></script>
+<script src="js/path-highlight.js"></script>
+<script src="js/attachments-favorites.js"></script>
+<script src="js/search.js"></script>
+<script src="js/document-export.js"></script>
+<script src="js/keyboard.js"></script>
+<script src="js/buttons.js"></script>
+<script src="js/boot.js"></script>
 </body>
 </html>
