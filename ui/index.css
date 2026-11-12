@@ -378,10 +378,9 @@
   .node-actions {
     display: flex;
     gap: 2px;
-    opacity: 0;
-    transition: opacity 0.15s;
+    visibility: hidden;
   }
-  .node:hover .node-actions { opacity: 1; }
+  .node:hover .node-actions { visibility: visible; }
 
   .node-action-btn {
     width: 22px; height: 22px;
@@ -420,17 +419,17 @@
     position: absolute;
     right: -10px;
     top: 50%;
-    transform: translateY(-50%);
+    margin-top: -8px;
     width: 16px; height: 16px;
     background: var(--surface2);
     border: 2px solid var(--border2);
     border-radius: 50%;
     cursor: crosshair;
-    opacity: 0;
-    transition: opacity 0.15s, border-color 0.15s;
+    visibility: hidden;
+    transition: border-color 0.15s;
     z-index: 10;
   }
-  .node:hover .node-connect-handle { opacity: 1; }
+  .node:hover .node-connect-handle { visibility: visible; }
   .node-connect-handle:hover { border-color: var(--accent); background: var(--accent); }
 
   /* EDGE LABELS */
@@ -614,8 +613,7 @@
     right: 0; bottom: 0;
     width: 14px; height: 14px;
     cursor: se-resize;
-    opacity: 0;
-    transition: opacity 0.15s;
+    visibility: hidden;
     z-index: 10;
   }
   .node-resize-handle::after {
@@ -627,7 +625,7 @@
     border-bottom: 2px solid var(--border2);
     border-radius: 0 0 3px 0;
   }
-  .node:hover .node-resize-handle { opacity: 1; }
+  .node:hover .node-resize-handle { visibility: visible; }
   .node-resize-handle:hover::after { border-color: var(--accent); }
 
   /* TEMPLATE ICON */
@@ -1260,6 +1258,11 @@
     margin-left: 4px;
   }
 
+  /* Promote the pan/zoom layers to the compositor only while the view is actually moving. */
+  #canvas-wrap.interacting #nodes-layer,
+  #canvas-wrap.interacting #edges-layer,
+  #canvas-wrap.interacting #groups-layer { will-change: transform; }
+
   /* GRAPH MODE (zoomed far out, Obsidian-style): dots, thin straight edges, faint labels.
      --inv-scale keeps dots, lines and labels at constant screen size. */
   .node-graph-dot { display: none; }
@@ -1270,9 +1273,9 @@
     box-shadow: none;
     pointer-events: none;
     cursor: default;
+    height: var(--fh, auto);
   }
-  .node > * { transition: opacity 0.2s; }
-  .graph-mode .node > *:not(.node-graph-dot) { opacity: 0; pointer-events: none; }
+  .graph-mode .node > *:not(.node-graph-dot) { display: none; }
 
   .graph-mode .node-graph-dot {
     display: block;

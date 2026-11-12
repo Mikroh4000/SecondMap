@@ -55,6 +55,87 @@ const canvasWrap = $('canvas-wrap');
 const minimap = $('minimap');
 const mmCtx = minimap.getContext('2d');
 const modeIndicator = $('mode-indicator');
+minimap.width = 140; minimap.height = 90;
+
+// ─── PERFORMANCE HELPERS ─────────────────────────────────────────
+// Cached id -> element lookup (avoids a selector scan per call).
+const nodeEls = new Map();
+function getNodeEl(id) {
+  let el = nodeEls.get(id);
+  if (el && el.isConnected) return el;
+  el = nodesLayer.querySelector(`[data-id="${id}"]`);
+  if (el) nodeEls.set(id, el); else nodeEls.delete(id);
+  return el;
+}
+
+// Node sizes are tracked by a ResizeObserver so edges/groups/minimap never have to force a layout.
+const nodeSizes = new Map();
+const nodeResizeObserver = new ResizeObserver(entries => {
+  let changed = false;
+  for (const entry of entries) {
+    const w = entry.borderBoxSize?.[0]?.inlineSize ?? entry.target.offsetWidth;
+    const h = entry.borderBoxSize?.[0]?.blockSize ?? entry.target.offsetHeight;
+    if (!w || !h) continue;
+    const prev = nodeSizes.get(entry.target.dataset.id);
+    if (!prev || prev.w !== w || prev.h !== h) {
+      nodeSizes.set(entry.target.dataset.id, { w, h });
+      changed = true;
+    }
+  }
+  if (changed) { renderEdges(); renderGroups(); }
+});
+
+function getNodeSize(n) {
+  let sz = nodeSizes.get(n.id);
+  if (sz) return sz;
+  const el = getNodeEl(n.id);
+  if (el && el.offsetWidth) {
+    sz = { w: el.offsetWidth, h: el.offsetHeight };
+    nodeSizes.set(n.id, sz);
+    return sz;
+  }
+  return { w: n.width || 220, h: 80 };
+}
+
+function buildNodeMap() {
+  const m = new Map();
+  for (const n of state.nodes) m.set(n.id, n);
+  return m;
+}
+
+// One O(n) pass instead of walking the parent chain with Array.find for every query.
+function computeHiddenSet(nodeMap) {
+  const hidden = new Set();
+  for (const n of nodeMap.values()) {
+    let cur = n, guard = nodeMap.size;
+    while (cur.parentId && guard-- > 0) {
+      const parent = nodeMap.get(cur.parentId);
+      if (!parent) break;
+      if (parent.collapsed) { hidden.add(n.id); break; }
+      cur = parent;
+    }
+  }
+  return hidden;
+}
+
+// Coalesces high-frequency input (mousemove) into one update per animation frame.
+const frame = { queued: false, transform: false, drag: null, overlays: false };
+function scheduleFrame() {
+  if (frame.queued) return;
+  frame.queued = true;
+  requestAnimationFrame(flushFrame);
+}
+function flushFrame() {
+  if (!frame.queued) return;
+  frame.queued = false;
+  if (frame.drag) {
+    const { x, y } = frame.drag; frame.drag = null;
+    moveDraggedNodes(x, y);
+  }
+  if (frame.transform) { frame.transform = false; applyTransform(); }
+  if (frame.overlays) { frame.overlays = false; renderEdges(); renderGroups(); }
+}
+function scheduleOverlays() { frame.overlays = true; scheduleFrame(); }
 
 function tauriInvoke(cmd, args = {}) {
   try {
@@ -177,7 +258,7 @@ async function applyUndoRedo(action, isUndo) {
         n.width = isUndo ? action.oldWidth : action.newWidth;
         n.height = isUndo ? (action.oldHeight || null) : (action.newHeight || null);
         await saveNode(n);
-        const el = nodesLayer.querySelector(`[data-id="${n.id}"]`);
+        const el = getNodeEl(n.id);
         if (el) {
           el.style.width = (n.width || 220) + 'px';
           el.style.height = n.height ? n.height + 'px' : '';
@@ -921,17 +1002,17 @@ function renderMarkdown(text) {
 }
 
 // Render mermaid diagrams after DOM insertion
-function renderMermaidBlocks() {
+function renderMermaidBlocks(root = document) {
   if (typeof mermaid === 'undefined') return;
-  document.querySelectorAll('.mermaid-block[data-mermaid]').forEach(async el => {
+  root.querySelectorAll('.mermaid-block[data-mermaid]').forEach(async el => {
     const code = decodeURIComponent(escape(atob(el.dataset.mermaid)));
+    el.removeAttribute('data-mermaid');
     try {
       const { svg } = await mermaid.render(el.id + '-svg', code);
       el.innerHTML = svg;
     } catch(e) {
       el.innerHTML = `<pre class="mermaid-error">${code.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</pre>`;
     }
-    el.removeAttribute('data-mermaid');
   });
 }
 
@@ -943,17 +1024,32 @@ function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replac
 // ─── TRANSFORM ───────────────────────────────────────────────────
 const GRAPH_ENTER_SCALE = 0.4;
 const GRAPH_EXIT_SCALE = 0.46;
+let graphMode = false;
+let interactTimer = null;
 
 // Zoomed far out the map turns into an Obsidian-style graph: dots, thin straight lines, faint labels.
+// Node contents are display:none there, so heights are frozen first to keep edge anchors stable.
 function updateGraphMode() {
   const s = state.transform.scale;
-  const was = canvasWrap.classList.contains('graph-mode');
-  const now = was ? s < GRAPH_EXIT_SCALE : s < GRAPH_ENTER_SCALE;
-  canvasWrap.style.setProperty('--inv-scale', (1 / s).toString());
-  canvasWrap.style.setProperty('--label-opacity', Math.max(0, Math.min(1, (s - 0.14) / 0.18)).toFixed(2));
-  if (now !== was) {
+  const now = graphMode ? s < GRAPH_EXIT_SCALE : s < GRAPH_ENTER_SCALE;
+  if (now !== graphMode) {
+    graphMode = now;
+    if (now) {
+      const els = [...nodesLayer.children];
+      const heights = els.map(el => el.style.display === 'none' ? 0 : el.offsetHeight);
+      els.forEach((el, i) => { if (heights[i]) el.style.setProperty('--fh', heights[i] + 'px'); });
+    } else {
+      for (const el of nodesLayer.children) el.style.removeProperty('--fh');
+      canvasWrap.style.removeProperty('--inv-scale');
+      canvasWrap.style.removeProperty('--label-opacity');
+    }
     canvasWrap.classList.toggle('graph-mode', now);
     renderEdges();
+  }
+  // Custom properties are inherited, so they are only touched while the graph view needs them.
+  if (graphMode) {
+    canvasWrap.style.setProperty('--inv-scale', (1 / s).toString());
+    canvasWrap.style.setProperty('--label-opacity', Math.max(0, Math.min(1, (s - 0.14) / 0.18)).toFixed(2));
   }
 }
 
@@ -964,12 +1060,15 @@ function updateGraphDotSizes() {
     degree.set(e.target, (degree.get(e.target) || 0) + 1);
   }
   for (const el of nodesLayer.children) {
-    const size = Math.min(22, 8 + Math.sqrt(degree.get(el.dataset.id) || 0) * 3.5);
-    el.style.setProperty('--dot-size', size.toFixed(1) + 'px');
+    const size = (Math.min(22, 8 + Math.sqrt(degree.get(el.dataset.id) || 0) * 3.5)).toFixed(1) + 'px';
+    if (el.style.getPropertyValue('--dot-size') !== size) el.style.setProperty('--dot-size', size);
   }
 }
 
 function applyTransform() {
+  canvasWrap.classList.add('interacting');
+  clearTimeout(interactTimer);
+  interactTimer = setTimeout(() => canvasWrap.classList.remove('interacting'), 180);
   updateGraphMode();
   const t = `translate(${state.transform.x}px, ${state.transform.y}px) scale(${state.transform.scale})`;
   nodesLayer.style.transform = t; nodesLayer.style.transformOrigin = '0 0';
@@ -986,6 +1085,10 @@ function createNodeEl(node) {
   const el = document.createElement('div');
   el.className = 'node';
   el.dataset.id = node.id;
+  el._content = node.content;
+  nodeEls.set(node.id, el);
+  nodeSizes.delete(node.id);
+  nodeResizeObserver.observe(el);
   el.style.left = node.x + 'px';
   el.style.top = node.y + 'px';
   el.style.width = (node.width || 220) + 'px';
@@ -1049,8 +1152,8 @@ function createNodeEl(node) {
 }
 
 function renderNode(node) {
-  let el = nodesLayer.querySelector(`[data-id="${node.id}"]`);
-  if (!el) { el = createNodeEl(node); nodesLayer.appendChild(el); renderMermaidBlocks(); }
+  let el = getNodeEl(node.id);
+  if (!el) { el = createNodeEl(node); nodesLayer.appendChild(el); renderMermaidBlocks(el); }
   else {
     el.style.left = node.x + 'px';
     el.style.top = node.y + 'px';
@@ -1062,7 +1165,11 @@ function renderNode(node) {
     const graphLabel = el.querySelector('.node-graph-label');
     if (graphLabel) graphLabel.textContent = node.title || '';
     const body = $('body-' + node.id);
-    if (body) { body.innerHTML = renderMarkdown(node.content); renderMermaidBlocks(); }
+    if (body && el._content !== node.content) {
+      body.innerHTML = renderMarkdown(node.content);
+      el._content = node.content;
+      renderMermaidBlocks(body);
+    }
     const titleInput = el.querySelector('.node-title');
     if (titleInput && document.activeElement !== titleInput) titleInput.value = node.title || '';
     // Update favorite star
@@ -1101,15 +1208,17 @@ function renderNode(node) {
 }
 
 function updateNodeSelection(id) {
-  const el = nodesLayer.querySelector(`[data-id="${id}"]`);
+  const el = getNodeEl(id);
   if (!el) return;
   el.classList.toggle('selected', state.selectedNodes.has(id));
   el.classList.toggle('connect-source', state.connectSource === id);
 }
 
 function removeNodeEl(id) {
-  const el = nodesLayer.querySelector(`[data-id="${id}"]`);
-  if (el) el.remove();
+  const el = getNodeEl(id);
+  if (el) { nodeResizeObserver.unobserve(el); el.remove(); }
+  nodeEls.delete(id);
+  nodeSizes.delete(id);
 }
 
 async function updateMapTimestamp() {
@@ -1119,36 +1228,57 @@ async function updateMapTimestamp() {
 }
 
 // ─── GROUPS ──────────────────────────────────────────────────────
+const groupRecs = new Map();
 function renderGroups() {
   const gl = $('groups-layer');
   if (!gl) return;
-  gl.innerHTML = '';
+  const membersByGroup = new Map();
+  for (const n of state.nodes) {
+    if (!n.groupId) continue;
+    let list = membersByGroup.get(n.groupId);
+    if (!list) membersByGroup.set(n.groupId, list = []);
+    list.push(n);
+  }
+  const seen = new Set();
   for (const group of state.groups) {
-    const members = state.nodes.filter(n => n.groupId === group.id);
-    if (members.length === 0) continue;
+    const members = membersByGroup.get(group.id);
+    if (!members) continue;
+    seen.add(group.id);
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const n of members) {
-      const w = n.width || 220, h = 80;
-      const el = nodesLayer.querySelector(`[data-id="${n.id}"]`);
-      const eh = el ? el.offsetHeight : h;
+      const sz = getNodeSize(n);
       minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
-      maxX = Math.max(maxX, n.x + w); maxY = Math.max(maxY, n.y + eh);
+      maxX = Math.max(maxX, n.x + (n.width || 220)); maxY = Math.max(maxY, n.y + sz.h);
     }
     const pad = 20;
-    const gEl = document.createElement('div');
-    gEl.className = 'group-box';
-    gEl.dataset.groupId = group.id;
-    gEl.style.left = (minX - pad) + 'px';
-    gEl.style.top = (minY - pad - 24) + 'px';
-    gEl.style.width = (maxX - minX + pad * 2) + 'px';
-    gEl.style.height = (maxY - minY + pad * 2 + 24) + 'px';
-    gEl.style.borderColor = group.color || '#555';
-    gEl.style.background = (group.color || '#555') + '12';
-    gEl.innerHTML = `<div class="group-label" style="color:${group.color || '#999'}">${escHtml(group.name || 'Gruppe')}
-      <button class="group-del-btn" onclick="deleteGroupById('${group.id}')" title="Gruppe auflösen">×</button>
-    </div>`;
-    gEl.querySelector('.group-label').addEventListener('dblclick', () => renameGroup(group.id));
-    gl.appendChild(gEl);
+    const sig = (group.name || '') + '|' + (group.color || '');
+    let rec = groupRecs.get(group.id);
+    if (!rec || rec.sig !== sig || !rec.el.isConnected) {
+      if (rec) rec.el.remove();
+      const gEl = document.createElement('div');
+      gEl.className = 'group-box';
+      gEl.dataset.groupId = group.id;
+      gEl.style.borderColor = group.color || '#555';
+      gEl.style.background = (group.color || '#555') + '12';
+      gEl.innerHTML = `<div class="group-label" style="color:${group.color || '#999'}">${escHtml(group.name || 'Gruppe')}
+        <button class="group-del-btn" onclick="deleteGroupById('${group.id}')" title="Gruppe auflösen">×</button>
+      </div>`;
+      gEl.querySelector('.group-label').addEventListener('dblclick', () => renameGroup(group.id));
+      gl.appendChild(gEl);
+      rec = { el: gEl, sig, geo: '' };
+      groupRecs.set(group.id, rec);
+    }
+    const left = minX - pad, top = minY - pad - 24;
+    const width = maxX - minX + pad * 2, height = maxY - minY + pad * 2 + 24;
+    const geo = left + ',' + top + ',' + width + ',' + height;
+    if (rec.geo !== geo) {
+      rec.geo = geo;
+      rec.el.style.left = left + 'px'; rec.el.style.top = top + 'px';
+      rec.el.style.width = width + 'px'; rec.el.style.height = height + 'px';
+    }
+  }
+  for (const [id, rec] of groupRecs) {
+    if (!seen.has(id)) { rec.el.remove(); groupRecs.delete(id); }
   }
 }
 
@@ -1221,7 +1351,7 @@ function isNodeHidden(nodeId) {
 
 function refreshCollapsedState() {
   for (const n of state.nodes) {
-    const el = nodesLayer.querySelector(`[data-id="${n.id}"]`);
+    const el = getNodeEl(n.id);
     if (!el) continue;
     el.style.display = isNodeHidden(n.id) ? 'none' : '';
   }
@@ -1231,7 +1361,7 @@ function refreshCollapsedState() {
 }
 
 function updateCollapseBar(nodeId) {
-  const el = nodesLayer.querySelector(`[data-id="${nodeId}"]`);
+  const el = getNodeEl(nodeId);
   if (!el) return;
   const children = getChildren(nodeId);
   let bar = el.querySelector('.node-collapse-bar');
@@ -1266,7 +1396,7 @@ async function addChildNode(parentId) {
   const parent = state.nodes.find(n => n.id === parentId);
   if (!parent) return;
   const children = getChildren(parentId);
-  const el = nodesLayer.querySelector(`[data-id="${parentId}"]`);
+  const el = getNodeEl(parentId);
   const parentH = el ? el.offsetHeight : 80;
   const childX = parent.x + 40 + children.length * 20;
   const childY = parent.y + parentH + 40 + children.length * 30;
@@ -1335,121 +1465,154 @@ async function createSubMapForNode(nodeId) {
 function getNodeCenter(id) {
   const n = state.nodes.find(n => n.id === id);
   if (!n) return null;
-  const el = nodesLayer.querySelector(`[data-id="${id}"]`);
-  const w = el ? el.offsetWidth : (n.width || 220);
-  const h = el ? el.offsetHeight : 80;
-  return { x: n.x + w / 2, y: n.y + h / 2 };
+  const sz = getNodeSize(n);
+  return { x: n.x + sz.w / 2, y: n.y + sz.h / 2 };
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const edgeRecs = new Map();
+
+function buildEdgeRecord(edge, graphMode, isHighlighted) {
+  const g = document.createElementNS(SVG_NS, 'g');
+  g.dataset.edgeId = edge.id;
+
+  const baseWidth = 1 + (edge.weight || 1) * 0.5;
+  const strokeColor = isHighlighted ? '#c8f064' : (edge.color || '#444');
+  const strokeWidth = isHighlighted ? baseWidth + 1.5 : baseWidth;
+
+  let dashArray = '';
+  if (edge.style === 'dashed') dashArray = '8 4';
+  else if (edge.style === 'dotted') dashArray = '2 4';
+
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('stroke', strokeColor);
+  path.setAttribute('stroke-width', strokeWidth.toString());
+  path.setAttribute('fill', 'none');
+  path.classList.add('edge-line');
+  path.setAttribute('marker-end', isHighlighted ? 'url(#arrow-hover)' : 'url(#arrow)');
+  if (dashArray) path.setAttribute('stroke-dasharray', dashArray);
+  if (edge.bidirectional) path.setAttribute('marker-start', isHighlighted ? 'url(#arrow-start-hover)' : 'url(#arrow-start)');
+  if (isHighlighted) g.classList.add('edge-path-highlighted');
+  path.style.cursor = 'pointer';
+
+  path.addEventListener('mouseenter', () => {
+    path.setAttribute('stroke', '#c8f064');
+    path.setAttribute('marker-end', 'url(#arrow-hover)');
+    if (edge.bidirectional) path.setAttribute('marker-start', 'url(#arrow-start-hover)');
+  });
+  path.addEventListener('mouseleave', () => {
+    path.setAttribute('stroke', strokeColor);
+    path.setAttribute('marker-end', isHighlighted ? 'url(#arrow-hover)' : 'url(#arrow)');
+    if (edge.bidirectional) path.setAttribute('marker-start', isHighlighted ? 'url(#arrow-start-hover)' : 'url(#arrow-start)');
+  });
+
+  const openEd = () => openEdgeEdit(edge.id);
+  path.addEventListener('click', openEd);
+
+  const hitPath = document.createElementNS(SVG_NS, 'path');
+  hitPath.setAttribute('stroke', 'transparent');
+  hitPath.setAttribute('stroke-width', '12');
+  hitPath.setAttribute('fill', 'none');
+  hitPath.classList.add('edge-hit');
+  hitPath.style.cursor = 'pointer';
+  hitPath.addEventListener('click', openEd);
+
+  g.appendChild(path);
+  g.appendChild(hitPath);
+
+  const rec = { g, path, hit: hitPath, d: '', bg: null, text: null, labelKey: '' };
+
+  // Labels are hidden in graph mode, so they are not even created there.
+  const label = graphMode ? '' : (edge.label ?? '').toString().trim();
+  if (label) {
+    const textLen = Math.max(24, label.length * 7 + 16);
+    const bgRect = document.createElementNS(SVG_NS, 'rect');
+    bgRect.setAttribute('width', textLen.toString());
+    bgRect.setAttribute('height', '20');
+    bgRect.setAttribute('rx', '4');
+    bgRect.setAttribute('fill', '#1a1a1a');
+    bgRect.setAttribute('stroke', '#2e2e2e');
+    bgRect.setAttribute('stroke-width', '1');
+    bgRect.style.pointerEvents = 'auto';
+    bgRect.style.cursor = 'pointer';
+    bgRect.addEventListener('click', openEd);
+
+    const text = document.createElementNS(SVG_NS, 'text');
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-family', 'IBM Plex Mono, monospace');
+    text.setAttribute('font-size', '11');
+    text.setAttribute('fill', '#8a8780');
+    text.style.pointerEvents = 'auto';
+    text.style.cursor = 'pointer';
+    text.textContent = label;
+    text.addEventListener('click', openEd);
+
+    g.appendChild(bgRect);
+    g.appendChild(text);
+    rec.bg = bgRect; rec.text = text; rec.textLen = textLen;
+  }
+  return rec;
+}
+
+// Reconciles the SVG against state: existing edges only get their geometry updated,
+// DOM is (re)built only for edges whose appearance changed.
 function renderEdges() {
-  edgesGroup.innerHTML = '';
-  const graphMode = canvasWrap.classList.contains('graph-mode');
-  updateGraphDotSizes();
+  const nodeMap = buildNodeMap();
+  const hidden = computeHiddenSet(nodeMap);
+  const seen = new Set();
+  let structural = false;
+
   for (const edge of state.edges) {
     try {
-      const s = getNodeCenter(edge.source), t = getNodeCenter(edge.target);
-      if (!s || !t) continue;
-      if (isNodeHidden(edge.source) || isNodeHidden(edge.target)) continue;
-      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      g.dataset.edgeId = edge.id;
+      const sn = nodeMap.get(edge.source), tn = nodeMap.get(edge.target);
+      if (!sn || !tn || hidden.has(sn.id) || hidden.has(tn.id)) continue;
+      seen.add(edge.id);
 
-      const cx1 = s.x + (t.x - s.x) * 0.3, cy1 = s.y;
-      const cx2 = s.x + (t.x - s.x) * 0.7, cy2 = t.y;
-      const d = graphMode
-        ? `M${s.x},${s.y} L${t.x},${t.y}`
-        : `M${s.x},${s.y} C${cx1},${cy1} ${cx2},${cy2} ${t.x},${t.y}`;
-
-      const weight = edge.weight || 1;
-      const baseWidth = 1 + weight * 0.5;
-      const isHighlighted = state.highlightedEdges && state.highlightedEdges.has(edge.id);
-      const strokeColor = isHighlighted ? '#c8f064' : (edge.color || '#444');
-      const strokeWidth = isHighlighted ? baseWidth + 1.5 : baseWidth;
-
-      let dashArray = '';
-      if (edge.style === 'dashed') dashArray = '8 4';
-      else if (edge.style === 'dotted') dashArray = '2 4';
-
-      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      path.setAttribute('d', d);
-      path.setAttribute('stroke', strokeColor);
-      path.setAttribute('stroke-width', strokeWidth.toString());
-      path.setAttribute('fill', 'none');
-      path.classList.add('edge-line');
-      path.setAttribute('marker-end', isHighlighted ? 'url(#arrow-hover)' : 'url(#arrow)');
-      if (dashArray) path.setAttribute('stroke-dasharray', dashArray);
-      if (edge.bidirectional) path.setAttribute('marker-start', isHighlighted ? 'url(#arrow-start-hover)' : 'url(#arrow-start)');
-      if (isHighlighted) g.classList.add('edge-path-highlighted');
-      path.style.cursor = 'pointer';
-      path.style.transition = 'stroke 0.15s';
-
-      path.addEventListener('mouseenter', () => {
-        path.setAttribute('stroke', '#c8f064');
-        path.setAttribute('marker-end', 'url(#arrow-hover)');
-        if (edge.bidirectional) path.setAttribute('marker-start', 'url(#arrow-start-hover)');
-      });
-      path.addEventListener('mouseleave', () => {
-        path.setAttribute('stroke', strokeColor);
-        path.setAttribute('marker-end', isHighlighted ? 'url(#arrow-hover)' : 'url(#arrow)');
-        if (edge.bidirectional) path.setAttribute('marker-start', isHighlighted ? 'url(#arrow-start-hover)' : 'url(#arrow-start)');
-      });
-
-      const openEd = () => openEdgeEdit(edge.id);
-      path.addEventListener('click', openEd);
-
-      const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-      hitPath.setAttribute('d', d);
-      hitPath.setAttribute('stroke', 'transparent');
-      hitPath.setAttribute('stroke-width', '12');
-      hitPath.setAttribute('fill', 'none');
-      hitPath.classList.add('edge-hit');
-      hitPath.style.cursor = 'pointer';
-      hitPath.addEventListener('click', openEd);
-
-      g.appendChild(path);
-      g.appendChild(hitPath);
-
-      // Edge label
-      const label = (edge.label ?? '').toString().trim();
-      if (label) {
-        const mx = 0.125 * s.x + 0.375 * cx1 + 0.375 * cx2 + 0.125 * t.x;
-        const my = 0.125 * s.y + 0.375 * cy1 + 0.375 * cy2 + 0.125 * t.y;
-        const textLen = Math.max(24, label.length * 7 + 16);
-        const bgRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        bgRect.setAttribute('x', (mx - textLen / 2).toString());
-        bgRect.setAttribute('y', (my - 10).toString());
-        bgRect.setAttribute('width', textLen.toString());
-        bgRect.setAttribute('height', '20');
-        bgRect.setAttribute('rx', '4');
-        bgRect.setAttribute('fill', '#1a1a1a');
-        bgRect.setAttribute('stroke', '#2e2e2e');
-        bgRect.setAttribute('stroke-width', '1');
-        bgRect.style.pointerEvents = 'auto';
-        bgRect.style.cursor = 'pointer';
-        bgRect.addEventListener('click', openEd);
-
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', mx.toString());
-        text.setAttribute('y', my.toString());
-        text.setAttribute('text-anchor', 'middle');
-        text.setAttribute('dominant-baseline', 'central');
-        text.setAttribute('font-family', 'IBM Plex Mono, monospace');
-        text.setAttribute('font-size', '11');
-        text.setAttribute('fill', '#8a8780');
-        text.style.pointerEvents = 'auto';
-        text.style.cursor = 'pointer';
-        text.textContent = label;
-        text.addEventListener('click', openEd);
-
-        g.appendChild(bgRect);
-        g.appendChild(text);
+      const isHighlighted = !!(state.highlightedEdges && state.highlightedEdges.has(edge.id));
+      const sig = [edge.source, edge.target, edge.color, edge.style, edge.weight, edge.bidirectional,
+        edge.label, isHighlighted, graphMode].join('|');
+      let rec = edgeRecs.get(edge.id);
+      if (!rec || rec.sig !== sig || !rec.g.isConnected) {
+        if (rec) rec.g.remove();
+        rec = buildEdgeRecord(edge, graphMode, isHighlighted);
+        rec.sig = sig;
+        edgeRecs.set(edge.id, rec);
+        edgesGroup.appendChild(rec.g);
+        structural = true;
       }
 
-      edgesGroup.appendChild(g);
+      const ssz = getNodeSize(sn), tsz = getNodeSize(tn);
+      const sx = sn.x + ssz.w / 2, sy = sn.y + ssz.h / 2;
+      const tx = tn.x + tsz.w / 2, ty = tn.y + tsz.h / 2;
+      const cx1 = sx + (tx - sx) * 0.3, cy1 = sy;
+      const cx2 = sx + (tx - sx) * 0.7, cy2 = ty;
+      const d = graphMode
+        ? `M${sx},${sy} L${tx},${ty}`
+        : `M${sx},${sy} C${cx1},${cy1} ${cx2},${cy2} ${tx},${ty}`;
+      if (rec.d !== d) {
+        rec.d = d;
+        rec.path.setAttribute('d', d);
+        rec.hit.setAttribute('d', d);
+        if (rec.bg) {
+          const mx = 0.125 * sx + 0.375 * cx1 + 0.375 * cx2 + 0.125 * tx;
+          const my = 0.125 * sy + 0.375 * cy1 + 0.375 * cy2 + 0.125 * ty;
+          rec.bg.setAttribute('x', (mx - rec.textLen / 2).toString());
+          rec.bg.setAttribute('y', (my - 10).toString());
+          rec.text.setAttribute('x', mx.toString());
+          rec.text.setAttribute('y', my.toString());
+        }
+      }
     } catch (err) {
       // Skip malformed edge entries without breaking full render.
       console.warn('Edge render skipped', edge?.id, err);
     }
   }
+
+  for (const [id, rec] of edgeRecs) {
+    if (!seen.has(id)) { rec.g.remove(); edgeRecs.delete(id); structural = true; }
+  }
+  if (structural) updateGraphDotSizes();
   drawMinimap();
 }
 
@@ -1482,12 +1645,19 @@ function onNodeMouseDown(e, id) {
   }
   state.dragStartPositions = {};
   state.dragSet = dragSet;
+  state.dragPrimary = n;
+  state.dragItems = [];
   for (const sid of dragSet) {
     const sn = state.nodes.find(x => x.id === sid);
-    if (sn) state.dragStartPositions[sid] = { x: sn.x, y: sn.y };
+    if (sn) {
+      state.dragStartPositions[sid] = { x: sn.x, y: sn.y };
+      const sel = getNodeEl(sid);
+      if (sel) { sel._dragX = sn.x; sel._dragY = sn.y; sel.style.willChange = 'transform'; }
+      state.dragItems.push({ n: sn, el: sel });
+    }
   }
   for (const sid of state.selectedNodes) {
-    const el = nodesLayer.querySelector(`[data-id="${sid}"]`);
+    const el = getNodeEl(sid);
     if (el) el.classList.add('dragging');
   }
 }
@@ -1528,7 +1698,7 @@ function onResizeMouseDown(e, id) {
   e.preventDefault(); e.stopPropagation();
   const n = state.nodes.find(x => x.id === id);
   if (!n) return;
-  const el = nodesLayer.querySelector(`[data-id="${id}"]`);
+  const el = getNodeEl(id);
   const currentHeight = el ? el.offsetHeight : (n.height || 0);
   state.resizing = { id, startWidth: n.width || 220, startX: e.clientX, startHeight: currentHeight, startY: e.clientY };
 }
@@ -1555,6 +1725,22 @@ canvasWrap.addEventListener('mousedown', e => {
     canvasWrap.style.cursor = 'grabbing';
   }
 });
+
+function moveDraggedNodes(clientX, clientY) {
+  if (!state.dragging || !state.dragItems) return;
+  const primary = state.dragPrimary;
+  if (!primary) return;
+  const wp = screenToWorld(clientX, clientY);
+  const dx = (wp.x - state.dragOffset.x) - primary.x;
+  const dy = (wp.y - state.dragOffset.y) - primary.y;
+  // Nodes move via transform (compositor only); left/top are committed on drop.
+  for (const { n, el } of state.dragItems) {
+    n.x += dx; n.y += dy;
+    if (el) el.style.transform = `translate(${n.x - el._dragX}px, ${n.y - el._dragY}px)`;
+  }
+  renderEdges();
+  renderGroups();
+}
 
 document.addEventListener('mousemove', e => {
   // Selection rectangle
@@ -1583,39 +1769,25 @@ document.addEventListener('mousemove', e => {
       n.width = Math.max(150, Math.min(800, state.resizing.startWidth + dx));
       const newHeight = state.resizing.startHeight + dy;
       n.height = newHeight > 80 ? Math.round(newHeight) : null;
-      const el = nodesLayer.querySelector(`[data-id="${n.id}"]`);
+      const el = getNodeEl(n.id);
       if (el) {
         el.style.width = n.width + 'px';
         el.style.height = n.height ? n.height + 'px' : '';
       }
-      renderEdges();
+      scheduleOverlays();
     }
     return;
   }
 
-  // Drag nodes (multi-select aware)
+  // Drag nodes (multi-select aware); applied once per animation frame
   if (state.dragging) {
-    const wp = screenToWorld(e.clientX, e.clientY);
-    const primary = state.nodes.find(n => n.id === state.dragging);
-    if (primary) {
-      const dx = (wp.x - state.dragOffset.x) - primary.x;
-      const dy = (wp.y - state.dragOffset.y) - primary.y;
-      for (const sid of (state.dragSet || state.selectedNodes)) {
-        const n = state.nodes.find(x => x.id === sid);
-        if (n) {
-          n.x += dx; n.y += dy;
-          const el = nodesLayer.querySelector(`[data-id="${sid}"]`);
-          if (el) { el.style.left = n.x + 'px'; el.style.top = n.y + 'px'; }
-        }
-      }
-      renderEdges();
-      renderGroups();
-    }
+    frame.drag = { x: e.clientX, y: e.clientY };
+    scheduleFrame();
   } else if (state.panning) {
     state.transform.x = state.panOrigin.x + (e.clientX - state.panStart.x);
     state.transform.y = state.panOrigin.y + (e.clientY - state.panStart.y);
-    applyTransform();
-    drawMinimap();
+    frame.transform = true;
+    scheduleFrame();
   }
 
   if (state.mode === 'connect' && state.connectSource) {
@@ -1632,6 +1804,7 @@ document.addEventListener('mousemove', e => {
 });
 
 document.addEventListener('mouseup', async e => {
+  flushFrame();
   // End selection rectangle
   if (state.selectionRect) {
     const r = canvasWrap.getBoundingClientRect();
@@ -1642,7 +1815,7 @@ document.addEventListener('mouseup', async e => {
     // Select nodes within rectangle
     if (!e.ctrlKey && !e.metaKey) state.selectedNodes.clear();
     for (const n of state.nodes) {
-      const el = nodesLayer.querySelector(`[data-id="${n.id}"]`);
+      const el = getNodeEl(n.id);
       const w = el ? el.offsetWidth : (n.width || 220);
       const h = el ? el.offsetHeight : 80;
       const ns = worldToScreen(n.x, n.y);
@@ -1679,6 +1852,13 @@ document.addEventListener('mouseup', async e => {
 
   // End drag
   if (state.dragging) {
+    if (state.dragItems) {
+      for (const { n, el } of state.dragItems) {
+        if (!el) continue;
+        el.style.left = n.x + 'px'; el.style.top = n.y + 'px';
+        el.style.transform = ''; el.style.willChange = '';
+      }
+    }
     // Create undo for moved nodes
     if (state.dragStartPositions) {
       const moves = [];
@@ -1693,11 +1873,13 @@ document.addEventListener('mouseup', async e => {
       state.dragStartPositions = null;
     }
     for (const sid of state.selectedNodes) {
-      const el = nodesLayer.querySelector(`[data-id="${sid}"]`);
+      const el = getNodeEl(sid);
       if (el) el.classList.remove('dragging');
     }
     state.dragging = null;
     state.dragSet = null;
+    state.dragItems = null;
+    state.dragPrimary = null;
     await updateMapTimestamp();
     await saveMeta(state.transform);
   }
@@ -1731,7 +1913,7 @@ function smoothZoom(delta, clientX, clientY) {
     state.transform.y = startY + (targetY - startY) * ease;
     state.transform.scale = startScale + (newScale - startScale) * ease;
     applyTransform();
-    if (t < 1) requestAnimationFrame(step); else drawMinimap();
+    if (t < 1) requestAnimationFrame(step);
   }
   requestAnimationFrame(step);
 }
@@ -2484,7 +2666,7 @@ function fitView() {
   if (visibleNodes.length === 0) return;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const n of visibleNodes) {
-    const el = nodesLayer.querySelector(`[data-id="${n.id}"]`);
+    const el = getNodeEl(n.id);
     const w = el ? el.offsetWidth : (n.width || 220);
     const h = el ? el.offsetHeight : 80;
     minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
@@ -2500,12 +2682,20 @@ function fitView() {
 }
 
 // ─── MINIMAP ─────────────────────────────────────────────────────
+let minimapQueued = false;
 function drawMinimap() {
+  if (minimapQueued) return;
+  minimapQueued = true;
+  requestAnimationFrame(() => { minimapQueued = false; paintMinimap(); });
+}
+
+function paintMinimap() {
   const W = 140, H = 90;
-  minimap.width = W; minimap.height = H;
   mmCtx.clearRect(0, 0, W, H);
   if (state.nodes.length === 0) return;
-  const visibleNodes = state.nodes.filter(n => !isNodeHidden(n.id));
+  const nodeMap = buildNodeMap();
+  const hidden = computeHiddenSet(nodeMap);
+  const visibleNodes = state.nodes.filter(n => !hidden.has(n.id));
   if (visibleNodes.length === 0) return;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const n of visibleNodes) {
@@ -2517,10 +2707,10 @@ function drawMinimap() {
   const scaleY = (H - pad*2) / Math.max(maxY - minY, 1);
   const sc = Math.min(scaleX, scaleY);
   for (const edge of state.edges) {
-    const s = state.nodes.find(n => n.id === edge.source);
-    const t = state.nodes.find(n => n.id === edge.target);
+    const s = nodeMap.get(edge.source);
+    const t = nodeMap.get(edge.target);
     if (!s || !t) continue;
-    if (isNodeHidden(edge.source) || isNodeHidden(edge.target)) continue;
+    if (hidden.has(edge.source) || hidden.has(edge.target)) continue;
     const isHL = state.highlightedEdges && state.highlightedEdges.has(edge.id);
     mmCtx.beginPath();
     if (edge.style === 'dashed') mmCtx.setLineDash([4, 2]);
@@ -2857,7 +3047,7 @@ function openFavoritesPanel() {
       const n = state.nodes.find(x => x.id === nodeId);
       if (n) {
         selectNode(nodeId);
-        const el = nodesLayer.querySelector(`[data-id="${nodeId}"]`);
+        const el = getNodeEl(nodeId);
         const w = el ? el.offsetWidth : (n.width || 220);
         const h = el ? el.offsetHeight : 80;
         const cx = canvasWrap.offsetWidth / 2, cy = canvasWrap.offsetHeight / 2;
@@ -2902,7 +3092,7 @@ function openSearchPanel() {
 function closeSearchPanel() {
   $('search-panel').classList.remove('open');
   state.nodes.forEach(n => {
-    const el = nodesLayer.querySelector(`[data-id="${n.id}"]`);
+    const el = getNodeEl(n.id);
     if (el) el.classList.remove('search-match');
   });
 }
@@ -2970,7 +3160,7 @@ async function performSearch() {
       const n = state.nodes.find(x => x.id === nodeId);
       if (n) {
         selectNode(nodeId);
-        const el = nodesLayer.querySelector(`[data-id="${nodeId}"]`);
+        const el = getNodeEl(nodeId);
         const w = el ? el.offsetWidth : (n.width || 220);
         const h = el ? el.offsetHeight : 80;
         const cx = canvasWrap.offsetWidth / 2, cy = canvasWrap.offsetHeight / 2;
@@ -2983,7 +3173,7 @@ async function performSearch() {
 
   // Highlight matching nodes on current map
   state.nodes.forEach(n => {
-    const el = nodesLayer.querySelector(`[data-id="${n.id}"]`);
+    const el = getNodeEl(n.id);
     if (el) el.classList.toggle('search-match', results.some(r => r.id === n.id));
   });
 }
