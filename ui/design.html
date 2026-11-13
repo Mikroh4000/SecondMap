@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SecondMap Design</title>
+<link rel="stylesheet" href="design.css">
+</head>
+<body>
+
+<div id="d-topbar">
+  <a class="d-btn d-back" id="d-back" href="index.html" title="Back to the mind map">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3L5 8l5 5"/></svg>
+    Mind map
+  </a>
+  <div class="d-logo">Second<span>Design</span></div>
+  <div class="d-sep"></div>
+  <div id="d-tools">
+    <button class="d-btn d-tool" data-tool="move" title="Move (V)">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l9 5.5-4 1.2-1.7 3.8z"/></svg>
+    </button>
+    <button class="d-btn d-tool" data-tool="frame" title="Frame (F)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 1v14M11 1v14M1 5h14M1 11h14"/></svg>
+    </button>
+    <button class="d-btn d-tool" data-tool="rect" title="Rectangle (R)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="12" height="10" rx="1"/></svg>
+    </button>
+    <button class="d-btn d-tool" data-tool="ellipse" title="Ellipse (O)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="5.5"/></svg>
+    </button>
+    <button class="d-btn d-tool" data-tool="text" title="Text (T)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3h10M8 3v10M6 13h4"/></svg>
+    </button>
+    <button class="d-btn d-tool" data-tool="hand" title="Hand (H / hold Space)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M5 8V3.5a1 1 0 0 1 2 0V7m0-3.5v-1a1 1 0 0 1 2 0V7m0-3a1 1 0 0 1 2 0v5a4 4 0 0 1-4 4H8a3 3 0 0 1-2.4-1.2L3 9.5a1 1 0 0 1 1.5-1.3L5 9"/></svg>
+    </button>
+  </div>
+  <div class="d-sep"></div>
+  <button class="d-btn" id="d-undo" title="Undo (Ctrl+Z)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6L1 9l3 3"/><path d="M1 9h8a4 4 0 0 1 0 6H7"/></svg>
+  </button>
+  <button class="d-btn" id="d-redo" title="Redo (Ctrl+Y)">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 6l3 3-3 3"/><path d="M15 9H7a4 4 0 0 0 0 6h2"/></svg>
+  </button>
+  <div class="d-sep"></div>
+  <button class="d-btn" id="d-group" title="Group (Ctrl+G)">Group</button>
+  <button class="d-btn" id="d-component" title="Create component (Ctrl+Alt+K)">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l3 3-3 3-3-3zM8 9l3 3-3 3-3-3zM1 8l3-3 3 3-3 3zM9 8l3-3 3 3-3 3z"/></svg>
+    Component
+  </button>
+  <div class="d-spacer"></div>
+  <div class="d-zoom">
+    <button class="d-btn" id="d-zoom-out" title="Zoom out (-)">−</button>
+    <button class="d-btn" id="d-zoom-label" title="Zoom to fit (Shift+1)">100%</button>
+    <button class="d-btn" id="d-zoom-in" title="Zoom in (+)">+</button>
+  </div>
+  <div class="d-sep"></div>
+  <div class="d-menu" id="d-file-menu">
+    <button class="d-btn" id="d-file-btn">File ▾</button>
+    <div class="d-menu-list">
+      <button id="d-export-json">Export design (.json)</button>
+      <button id="d-import-json">Import design (.json)</button>
+      <button id="d-export-png">Export selection as PNG</button>
+      <button id="d-new-doc">New empty design</button>
+    </div>
+  </div>
+  <button class="d-btn d-primary" id="d-present" title="Present prototype (Ctrl+Enter)">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2l10 6-10 6z"/></svg>
+    Present
+  </button>
+</div>
+
+<div id="d-main">
+  <aside id="d-left">
+    <div class="d-section" id="d-pages-section">
+      <div class="d-section-head"><span>Pages</span><button class="d-icon-btn" id="d-add-page" title="Add page">+</button></div>
+      <div id="d-pages"></div>
+    </div>
+    <div class="d-tabs" id="d-left-tabs">
+      <button class="active" data-tab="layers">Layers</button>
+      <button data-tab="assets">Assets</button>
+    </div>
+    <div id="d-layers" class="d-tab-body"></div>
+    <div id="d-assets" class="d-tab-body" hidden></div>
+  </aside>
+
+  <div id="d-viewport">
+    <div id="d-world"></div>
+    <div id="d-overlay"></div>
+    <div id="d-empty-hint">Pick a tool (<kbd>F</kbd> frame, <kbd>R</kbd> rectangle, <kbd>O</kbd> ellipse, <kbd>T</kbd> text) and draw on the canvas.</div>
+  </div>
+
+  <aside id="d-right">
+    <div class="d-tabs" id="d-right-tabs">
+      <button class="active" data-tab="design">Design</button>
+      <button data-tab="prototype">Prototype</button>
+    </div>
+    <div id="d-props" class="d-tab-body"></div>
+    <div id="d-proto" class="d-tab-body" hidden></div>
+  </aside>
+</div>
+
+<div id="d-present-overlay" hidden>
+  <div id="d-present-bar">
+    <span id="d-present-title"></span>
+    <span class="d-hint">Click linked objects to navigate · <kbd>Esc</kbd> to exit</span>
+    <button class="d-btn" id="d-present-close">Close</button>
+  </div>
+  <div id="d-present-stage"></div>
+</div>
+
+<div id="d-toast"></div>
+<input type="file" id="d-file-image" accept="image/*" multiple hidden>
+<input type="file" id="d-file-json" accept=".json" hidden>
+
+<!-- Classic scripts sharing one global scope: the load order matters (boot.js last). -->
+<script src="design/model.js"></script>
+<script src="design/render.js"></script>
+<script src="design/actions.js"></script>
+<script src="design/panels.js"></script>
+<script src="design/tools.js"></script>
+<script src="design/present.js"></script>
+<script src="design/boot.js"></script>
+</body>
+</html>
