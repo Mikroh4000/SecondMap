@@ -131,6 +131,13 @@ async function applyUndoRedo(action, isUndo) {
       renderGroups();
       break;
     }
+    case 'cycle-color': {
+      for (const ch of action.changes) {
+        const n = state.nodes.find(x => x.id === ch.id);
+        if (n) { n.color = isUndo ? ch.oldColor : ch.newColor; await saveNode(n); renderNode(n); }
+      }
+      break;
+    }
     case 'set-group': {
       for (const ch of action.changes) {
         const n = state.nodes.find(x => x.id === ch.id);

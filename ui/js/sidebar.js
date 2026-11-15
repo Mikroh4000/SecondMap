@@ -7,7 +7,7 @@ function toggleSidebar(open) {
   const shouldOpen = open !== undefined ? open : !isOpen;
   sidebar.classList.toggle('open', shouldOpen);
   overlay.classList.toggle('open', shouldOpen);
-  if (shouldOpen) renderSidebar();
+  if (shouldOpen) renderLibraryActiveTab();
 }
 
 async function renderSidebar() {
@@ -183,6 +183,7 @@ $('btn-sidebar').addEventListener('click', () => toggleSidebar());
 $('sidebar-close-btn').addEventListener('click', () => toggleSidebar(false));
 $('sidebar-overlay').addEventListener('click', () => toggleSidebar(false));
 $('sidebar-new-btn').addEventListener('click', async e => {
+  if (activeLibraryTab === 'designs') return; // handled by js/library-sidebar.js
   e.stopPropagation();
   const menu = document.createElement('div');
   menu.className = 'sidebar-new-menu';

@@ -5,7 +5,8 @@ async function boot() {
   await openDB();
 
   let maps = await getAllMaps();
-  let savedMapId = await loadCurrentMapId();
+  const requestedMapId = new URLSearchParams(location.search).get('map');
+  let savedMapId = (requestedMapId && maps.some(m => m.id === requestedMapId) && requestedMapId) || await loadCurrentMapId();
 
   if (maps.length === 0) {
     const oldNodes = await new Promise(res => { const r = dbStore('nodes').getAll(); r.onsuccess = () => res(r.result); });

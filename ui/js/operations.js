@@ -270,13 +270,17 @@ function cycleColor(e, id) {
   e.stopPropagation();
   // Apply to all selected if this node is selected
   const targets = state.selectedNodes.has(id) && state.selectedNodes.size > 1 ? [...state.selectedNodes] : [id];
+  const changes = [];
   for (const tid of targets) {
     const n = state.nodes.find(n => n.id === tid);
     if (!n) continue;
     const idx = NODE_COLORS.indexOf(n.color);
+    const oldColor = n.color;
     n.color = NODE_COLORS[(idx + 1) % NODE_COLORS.length];
+    changes.push({ id: tid, oldColor, newColor: n.color });
     saveNode(n);
     renderNode(n);
   }
+  if (changes.length) pushUndo({ type: 'cycle-color', changes });
 }
 window.cycleColor = cycleColor;

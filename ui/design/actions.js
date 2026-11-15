@@ -2,6 +2,7 @@
 
 function renderAll() {
   refreshCanvas();
+  renderDesignsList();
   renderPages();
   renderLayers();
   if (leftTab() === 'assets') renderAssets();
@@ -86,6 +87,22 @@ function instanceFromSelection() {
   const inst = createInstance(id, { parent: parentOf(id), x: m.x + m.w + 40, y: m.y });
   if (!inst) return;
   commit(); reindex(); setSelection([inst.id]); renderAll();
+}
+
+// A plain, independent copy of a group (unlike components/instances, groups have no master/instance
+// link, so reusing one from the Assets tab just clones it). x / y are local to `parent`, defaulting to
+// the centre of the visible canvas.
+function groupCopyAt(groupId, opts = {}) {
+  const g = nodeOf(groupId);
+  if (!g || g.type !== 'group') return null;
+  const parent = opts.parent || null;
+  if (parent && (parent.id === groupId || isInside(parent.id, groupId))) { showToast("A group can't contain its own copy"); return null; }
+  const c = viewCenterLocal(parent);
+  const copy = cloneNode(g, { keepComponent: true });
+  copy.x = Math.round(opts.x ?? c.x - g.w / 2);
+  copy.y = Math.round(opts.y ?? c.y - g.h / 2);
+  listFor(parent).push(copy);
+  return copy;
 }
 
 function detachSelection() {
@@ -197,6 +214,28 @@ function pasteClipboard() {
   commit(); reindex(); setSelection(out); renderAll();
 }
 
+// Like pasteClipboard(), but centers the pasted nodes on a screen point (the right-click context menu's
+// "Paste" item) instead of stepping diagonally away from where they were copied.
+function pasteClipboardAt(clientX, clientY) {
+  const cb = D.clipboard;
+  if (!cb) return;
+  const target = cb.parentId && byId.get(cb.parentId)?.pageId === D.pageId ? nodeOf(cb.parentId) : frameUnderPoint(clientX, clientY);
+  const pa = target ? absPos(target.id) : { x: 0, y: 0 };
+  const world = screenToWorld(clientX, clientY);
+  let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+  for (const src of cb.nodes) { x1 = Math.min(x1, src.x); y1 = Math.min(y1, src.y); x2 = Math.max(x2, src.x + src.w); y2 = Math.max(y2, src.y + src.h); }
+  const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+  const out = [];
+  for (const src of cb.nodes) {
+    const c = cloneNode(src, { keepComponent: true });
+    c.x = Math.round(world.x - pa.x + (src.x - cx));
+    c.y = Math.round(world.y - pa.y + (src.y - cy));
+    listFor(target).push(c);
+    out.push(c.id);
+  }
+  commit(); reindex(); setSelection(out); renderAll();
+}
+
 function selectAll() {
   const first = selRoots()[0];
   const list = first ? siblingsOf(first) : curPage().children;
@@ -300,12 +339,11 @@ function toggleFlag(key) {
 function switchPage(id) {
   if (id === D.pageId) return;
   D.pageId = id;
-  D.sel = []; D.entered = new Set(); D.hover = null;
+  D.sel = []; D.entered = new Set(); D.hover = null; D.layerFilter.clear();
   reindex();
   renderAll();
   schedulePersist();
 }
-
 function addPage() {
   const p = { id: uid(), name: `Page ${D.doc.pages.length + 1}`, bg: '#2c2c2c', children: [] };
   D.doc.pages.push(p);
@@ -325,6 +363,46 @@ function deletePage(id) {
   if (D.pageId === id) D.pageId = D.doc.pages[0].id;
   D.sel = [];
   afterChange();
+}
+
+// ─── designs (the document library; see design/design-db.js) ────
+// Switches which design is open in this editor, saving the current one first.
+async function switchDesign(id) {
+  if (!D.doc || id === D.doc.id) return;
+  await saveDocNow();
+  const doc = await getDesignDoc(id);
+  if (!doc) { showToast('Design not found'); return; }
+  setDoc(doc);
+  await setCurrentDesignId(id);
+  renderAll();
+  renderDesignsList();
+  fitView();
+}
+
+async function createDesignAndSwitch() {
+  await saveDocNow();
+  const doc = await createDesignDoc(`Design ${(await getAllDesignDocs()).length + 1}`);
+  setDoc(doc);
+  await setCurrentDesignId(doc.id);
+  renderAll();
+  renderDesignsList();
+}
+
+async function deleteDesignPrompt(id) {
+  const all = await getAllDesignDocs();
+  if (all.length < 2) { showToast("You can't delete the last design"); return; }
+  const doc = all.find(d => d.id === id);
+  if (!doc || !confirm(`Delete design "${doc.name}"?`)) return;
+  await deleteDesignDoc(id);
+  if (id === D.doc.id) {
+    const remaining = all.filter(d => d.id !== id);
+    const next = await getDesignDoc(remaining[0].id);
+    setDoc(next);
+    await setCurrentDesignId(next.id);
+    renderAll();
+    fitView();
+  }
+  renderDesignsList();
 }
 
 // ─── assets ──────────────────────────────────────────────────────
@@ -396,6 +474,8 @@ function insertAssetAtCenter(kind, id) {
   if (kind === 'component') {
     const m = nodeOf(id);
     n = createInstance(id, frame ? { parent: frame, x: (frame.w - m.w) / 2, y: (frame.h - m.h) / 2 } : {});
+  } else if (kind === 'group') {
+    n = groupCopyAt(id, { parent: frame });
   } else {
     const { w, h } = imageSize(getAsset(id));
     n = addImageNode(id, frame ? { parent: frame, x: (frame.w - w) / 2, y: (frame.h - h) / 2 } : {});
@@ -444,6 +524,7 @@ async function importDesignJson(file) {
     const doc = data.doc || data;
     if (!Array.isArray(doc.pages) || !doc.pages.length) throw new Error('invalid');
     if (!confirm('Replace the current design with the imported file?')) return;
+    doc.id = D.doc.id; doc.name = D.doc.name; doc.created = D.doc.created;
     setDoc(doc);
     schedulePersist();
     renderAll();
@@ -452,11 +533,10 @@ async function importDesignJson(file) {
   } catch (e) { showToast('Not a valid design file', 'err'); }
 }
 
-function newDesign() {
-  if (!confirm('Discard the current design and start with an empty one?')) return;
-  setDoc(defaultDoc());
-  schedulePersist();
-  renderAll();
+// Creates a brand-new, independent design and switches to it (see the Designs list for the old one).
+async function newDesign() {
+  await createDesignAndSwitch();
+  showToast('New design created', 'ok');
 }
 
 async function exportPng() {

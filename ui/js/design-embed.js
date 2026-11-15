@@ -1,59 +1,27 @@
-// Designs from the design editor shown inside nodes. A node references a top-level frame (screen) or a
-// component by id (node.designId); the design itself stays in the editor's storage, so every node showing
-// it is updated when the design changes. Uses the shared renderer from design/static.js.
+// Designs from the design editor shown inside nodes. A node references one layer (a top-level frame
+// = "screen", or a component) of one design document: node.designDocId + node.designId. The design
+// itself stays in its own document (see design/design-db.js), so every node showing it updates when
+// that document changes. Uses the shared renderer from design/static.js.
 
-const DESIGN_DB = 'secondmap-design';
-let designDoc = null;
-let designCtx = null;
-let designVersion = 0; // bumped whenever the design document was (re)loaded
+let designDocs = new Map();   // docId -> raw design document
+let designCtxs = new Map();   // docId -> docCtx(doc), see design/static.js
+let designVersion = 0;        // bumped whenever the design library was (re)loaded
 
-function readDesignDoc() {
-  return new Promise(resolve => {
-    try {
-      const req = indexedDB.open(DESIGN_DB, 1);
-      req.onupgradeneeded = () => req.result.createObjectStore('kv');
-      req.onerror = () => resolve(null);
-      req.onsuccess = () => {
-        const db = req.result;
-        const get = db.transaction('kv').objectStore('kv').get('doc');
-        get.onsuccess = () => { db.close(); resolve(get.result || null); };
-        get.onerror = () => { db.close(); resolve(null); };
-      };
-    } catch (_) { resolve(null); }
-  });
-}
-
-// Loads the saved design document and re-renders every node that shows a design.
+// Loads every design document and re-renders all nodes that show one.
 async function refreshDesignEmbeds() {
-  const doc = await readDesignDoc();
-  designDoc = doc && Array.isArray(doc.pages) ? doc : { pages: [], assets: [] };
-  designCtx = docCtx(designDoc);
+  const docs = await getAllDesignDocs();
+  designDocs = new Map(docs.map(d => [d.id, d]));
+  designCtxs = new Map(docs.map(d => [d.id, docCtx(d)]));
   designVersion++;
   for (const n of state.nodes) {
     const el = n.designId && getNodeEl(n.id);
     if (el) renderNodeDesign(el, n);
   }
-  return designDoc;
+  return designDocs;
 }
 
-// Everything that can be embedded: top-level frames and components.
-function listEmbeddableDesigns() {
-  const out = [];
-  if (!designDoc) return out;
-  for (const p of designDoc.pages) {
-    const walk = (list, top) => {
-      for (const n of list) {
-        if ((top && n.type === 'frame') || n.isComponent) out.push({ id: n.id, name: n.name, page: p.name, component: !!n.isComponent });
-        if (n.children) walk(n.children, false);
-      }
-    };
-    walk(p.children, true);
-  }
-  return out;
-}
-
-function openDesignInEditor(id) {
-  location.href = 'design.html#layer=' + encodeURIComponent(id);
+function openDesignInEditor(docId, layerId) {
+  location.href = `design.html?design=${encodeURIComponent(docId)}#layer=${encodeURIComponent(layerId)}`;
 }
 
 const designObserver = new ResizeObserver(entries => {
@@ -82,21 +50,23 @@ function renderNodeDesign(el, node) {
     box = document.createElement('div');
     box.className = 'node-design';
     box.title = 'Doppelklick: im Design-Editor öffnen';
-    box.addEventListener('dblclick', e => { e.stopPropagation(); openDesignInEditor(box._id); });
+    box.addEventListener('dblclick', e => { e.stopPropagation(); openDesignInEditor(box._docId, box._id); });
     el.querySelector('.node-header').after(box);
     designObserver.observe(box);
   }
-  if (box._id === node.designId && box._version === designVersion) return;
-  box._id = node.designId;
+  const sig = node.designDocId + '|' + node.designId;
+  if (box._sig === sig && box._version === designVersion) return;
+  box._sig = sig; box._docId = node.designDocId; box._id = node.designId;
   box._version = designVersion;
   box._w = 0;
   box.className = 'node-design';
   box.style.aspectRatio = '';
   box.replaceChildren();
-  if (!designDoc) { box.textContent = 'Design wird geladen …'; box.classList.add('pending'); return; }
-  const target = designCtx.node(node.designId);
+  const ctx = designCtxs.get(node.designDocId);
+  if (!ctx) { box.textContent = 'Design wird geladen …'; box.classList.add('pending'); return; }
+  const target = ctx.node(node.designId);
   if (!target) { box.textContent = 'Design nicht mehr vorhanden'; box.classList.add('missing'); return; }
-  const inner = buildStatic(target, { root: true, ctx: designCtx });
+  const inner = buildStatic(target, { root: true, ctx });
   inner.style.transformOrigin = '0 0';
   box._w = target.w || 1;
   box.style.aspectRatio = `${target.w || 1} / ${target.h || 1}`;
@@ -104,17 +74,25 @@ function renderNodeDesign(el, node) {
   scaleDesignEmbed(box, box.clientWidth);
 }
 
-// Fills the design picker of the edit dialog.
-async function fillDesignSelect(select, currentId) {
+// Fills the design picker of the edit dialog. Option values are "<designDocId>::<layerId>".
+async function fillDesignSelect(select, currentDocId, currentLayerId) {
   await refreshDesignEmbeds();
-  const items = listEmbeddableDesigns();
-  const pages = [...new Set(items.map(i => i.page))];
-  select.innerHTML = '<option value="">Kein Design</option>' + pages.map(p =>
-    `<optgroup label="${escHtml(p)}">${items.filter(i => i.page === p).map(i =>
-      `<option value="${i.id}">${i.component ? '◆ ' : ''}${escHtml(i.name)}</option>`).join('')}</optgroup>`).join('');
-  if (currentId && !items.some(i => i.id === currentId)) select.insertAdjacentHTML('beforeend', `<option value="${escHtml(currentId)}">(fehlendes Design)</option>`);
-  select.value = currentId || '';
-  if (!items.length) select.title = 'Im Design-Editor zuerst einen Frame oder eine Komponente erstellen';
+  const docs = [...designDocs.values()].sort((a, b) => (b.updated || b.created) - (a.updated || a.created));
+  let html = '<option value="">Kein Design</option>';
+  let any = false;
+  for (const doc of docs) {
+    const items = listEmbeddableLayers(doc);
+    if (!items.length) continue;
+    any = true;
+    const multiPage = new Set(items.map(i => i.page)).size > 1;
+    html += `<optgroup label="${escHtml(doc.name)}">${items.map(i =>
+      `<option value="${doc.id}::${i.id}">${i.component ? '◆ ' : ''}${escHtml(i.name)}${multiPage ? ' – ' + escHtml(i.page) : ''}</option>`).join('')}</optgroup>`;
+  }
+  select.innerHTML = html;
+  const curVal = currentLayerId ? `${currentDocId}::${currentLayerId}` : '';
+  if (curVal && ![...select.options].some(o => o.value === curVal)) select.insertAdjacentHTML('beforeend', `<option value="${escHtml(curVal)}">(fehlendes Design)</option>`);
+  select.value = curVal;
+  if (!any) select.title = 'Im Design-Editor zuerst einen Frame oder eine Komponente erstellen';
 }
 
 window.addEventListener('pageshow', e => { if (e.persisted) refreshDesignEmbeds(); });

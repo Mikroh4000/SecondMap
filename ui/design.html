@@ -5,10 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SecondMap Design</title>
 <link rel="stylesheet" href="design.css">
+<link rel="stylesheet" href="shared-sidebar.css">
 </head>
 <body>
 
 <div id="d-topbar">
+  <button class="d-btn" id="d-btn-library" title="Mind maps & designs">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="2" y1="4" x2="14" y2="4"/><line x1="2" y1="8" x2="14" y2="8"/><line x1="2" y1="12" x2="10" y2="12"/></svg>
+  </button>
   <a class="d-btn d-back" id="d-back" href="index.html" title="Back to the mind map">
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3L5 8l5 5"/></svg>
     Mind map
@@ -61,7 +65,7 @@
       <button id="d-export-json">Export design (.json)</button>
       <button id="d-import-json">Import design (.json)</button>
       <button id="d-export-png">Export selection as PNG</button>
-      <button id="d-new-doc">New empty design</button>
+      <button id="d-new-doc">New design</button>
     </div>
   </div>
   <button class="d-btn d-primary" id="d-present" title="Present prototype (Ctrl+Enter)">
@@ -70,8 +74,31 @@
   </button>
 </div>
 
+<!-- SIDEBAR (Mind maps + Designs; shared with index.html, see js/library-sidebar.js) -->
+<div id="sidebar-overlay"></div>
+<div id="sidebar">
+  <div id="sidebar-header">
+    <h2>Library</h2>
+    <button class="modal-close" id="sidebar-close-btn">×</button>
+  </div>
+  <div id="sidebar-tabs" data-default-tab="designs">
+    <button data-tab="mindmaps">Mind maps</button>
+    <button class="active" data-tab="designs">Designs</button>
+  </div>
+  <button id="sidebar-new-btn">
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>
+    <span id="sidebar-new-label">New design</span>
+  </button>
+  <div id="sidebar-list"></div>
+  <div id="sidebar-footer">Stored locally</div>
+</div>
+
 <div id="d-main">
   <aside id="d-left">
+    <div class="d-section" id="d-designs-section">
+      <div class="d-section-head"><span>Designs</span><button class="d-icon-btn" id="d-add-design" title="New design">+</button></div>
+      <div id="d-designs"></div>
+    </div>
     <div class="d-section" id="d-pages-section">
       <div class="d-section-head"><span>Pages</span><button class="d-icon-btn" id="d-add-page" title="Add page">+</button></div>
       <div id="d-pages"></div>
@@ -79,6 +106,9 @@
     <div class="d-tabs" id="d-left-tabs">
       <button class="active" data-tab="layers">Layers</button>
       <button data-tab="assets">Assets</button>
+      <button class="d-icon-btn" id="d-layer-filter" title="Filter layers by type">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 3h12M4.5 8h7M7 13h2"/></svg>
+      </button>
     </div>
     <div id="d-layers" class="d-tab-body"></div>
     <div id="d-assets" class="d-tab-body" hidden></div>
@@ -114,6 +144,7 @@
 <input type="file" id="d-file-json" accept=".json" hidden>
 
 <!-- Classic scripts sharing one global scope: the load order matters (boot.js last). -->
+<script src="design/design-db.js"></script>
 <script src="design/static.js"></script>
 <script src="design/model.js"></script>
 <script src="design/render.js"></script>
@@ -121,6 +152,8 @@
 <script src="design/panels.js"></script>
 <script src="design/tools.js"></script>
 <script src="design/present.js"></script>
+<script src="js/maps-lite.js"></script>
+<script src="js/library-sidebar.js"></script>
 <script src="design/boot.js"></script>
 </body>
 </html>

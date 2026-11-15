@@ -353,6 +353,61 @@ viewportEl.addEventListener('wheel', e => {
   }
 }, { passive: false });
 
+// ─── right-click context menu ─────────────────────────────────────
+function closeContextMenu() { document.querySelector('.d-ctx-menu')?.remove(); }
+
+function showCanvasContextMenu(clientX, clientY, hasTarget) {
+  closeContextMenu();
+  const has = hasTarget && unlockedRoots().length > 0;
+  const rows = [
+    ['Cut', 'cut', has], ['Copy', 'copy', has], ['Paste', 'paste', !!D.clipboard],
+    null,
+    ['Duplicate', 'dup', has], ['Rename', 'rename', has && selRoots().length === 1],
+    null,
+    ['Bring to front', 'front', has], ['Bring forward', 'forward', has],
+    ['Send backward', 'backward', has], ['Send to back', 'back', has],
+    null,
+    ['Delete', 'delete', has],
+  ];
+  const menu = document.createElement('div');
+  menu.className = 'd-ctx-menu';
+  menu.innerHTML = rows.map(r => r === null ? '<div class="d-ctx-sep"></div>' : `<button data-act="${r[1]}"${r[2] ? '' : ' disabled'}>${r[0]}</button>`).join('');
+  document.body.appendChild(menu);
+  menu.style.left = Math.min(clientX, window.innerWidth - menu.offsetWidth - 8) + 'px';
+  menu.style.top = Math.min(clientY, window.innerHeight - menu.offsetHeight - 8) + 'px';
+  menu.addEventListener('click', e => {
+    const b = e.target.closest('button[data-act]');
+    if (!b || b.disabled) return;
+    closeContextMenu();
+    switch (b.dataset.act) {
+      case 'cut': copySelection(true); break;
+      case 'copy': copySelection(false); break;
+      case 'paste': pasteClipboardAt(clientX, clientY); break;
+      case 'dup': duplicateSelection(); break;
+      case 'rename': renameSelection(); break;
+      case 'front': reorderSelection('front'); break;
+      case 'forward': reorderSelection('forward'); break;
+      case 'backward': reorderSelection('backward'); break;
+      case 'back': reorderSelection('back'); break;
+      case 'delete': deleteSelection(); break;
+    }
+  });
+  setTimeout(() => document.addEventListener('click', function off(e) {
+    if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', off); }
+  }), 0);
+  document.addEventListener('scroll', closeContextMenu, { once: true, capture: true });
+}
+
+viewportEl.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (D.editing) return;
+  const label = document.elementsFromPoint(e.clientX, e.clientY).find(el => el.dataset && el.dataset.label);
+  let id = label ? label.dataset.label : null;
+  if (!id) { const hit = hitId(e.target); if (hit) id = pickSelectable(hit); }
+  if (id && !D.sel.includes(id)) setSelection([id], { keepEntered: true });
+  showCanvasContextMenu(e.clientX, e.clientY, !!id);
+});
+
 // Drop images / library assets onto the canvas.
 viewportEl.addEventListener('dragover', e => {
   const types = e.dataTransfer.types;
@@ -365,13 +420,17 @@ viewportEl.addEventListener('drop', async e => {
   const pa = parent ? absPos(parent.id) : { x: 0, y: 0 };
   const at = { parent, x: Math.round(w.x - pa.x), y: Math.round(w.y - pa.y) };
   if (e.dataTransfer.files && e.dataTransfer.files.length) { await importImages([...e.dataTransfer.files], at); return; }
-  const m = /^asset:(component|image|icon):(.+)$/.exec(e.dataTransfer.getData('text/plain'));
+  const m = /^asset:(component|group|image|icon):(.+)$/.exec(e.dataTransfer.getData('text/plain'));
   if (!m) return;
   let n;
   if (m[1] === 'component') {
     const src = nodeOf(m[2]);
     if (!src) return;
     n = createInstance(m[2], { parent, x: at.x - src.w / 2, y: at.y - src.h / 2 });
+  } else if (m[1] === 'group') {
+    const src = nodeOf(m[2]);
+    if (!src) return;
+    n = groupCopyAt(m[2], { parent, x: at.x - src.w / 2, y: at.y - src.h / 2 });
   } else {
     const { w: iw, h: ih } = imageSize(getAsset(m[2]));
     n = addImageNode(m[2], { parent, x: at.x - iw / 2, y: at.y - ih / 2 });

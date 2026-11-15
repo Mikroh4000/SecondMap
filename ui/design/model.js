@@ -8,6 +8,7 @@ const D = {
   sel: [],                // selected node ids
   entered: new Set(),     // containers whose children are directly selectable on the canvas
   collapsed: new Set(),   // layer ids collapsed in the layers panel
+  layerFilter: new Set(), // node types shown in the layers panel when non-empty (see d-layer-filter)
   tool: 'move',
   hover: null,
   editing: null,          // id of the text node being edited
@@ -31,23 +32,13 @@ const FRAME_PRESETS = [
   ['Slide 16:9 (1920 × 1080)', 1920, 1080],
 ];
 
-function uid() { return 'd' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3); }
+function uid() { return designUid(); }
 
 function getAsset(id) {
   return D.doc.assets.find(a => a.id === id) || BUILTIN_ASSETS.find(a => a.id === id) || null;
 }
 
-function defaultDoc() {
-  const pid = uid();
-  return {
-    version: 1,
-    pages: [{ id: pid, name: 'Page 1', bg: '#2c2c2c', children: [] }],
-    assets: [],
-    views: { [pid]: { x: 200, y: 120, zoom: 1 } },
-    counters: {},
-    pageId: pid,
-  };
-}
+function defaultDoc() { return newDesignDoc('Design 1'); }
 
 // ─── tree helpers ────────────────────────────────────────────────
 function curPage() { return D.doc.pages.find(p => p.id === D.pageId) || D.doc.pages[0]; }
@@ -200,27 +191,7 @@ function restoreHistory(idx) {
 function undo() { if (D.histIdx > 0) { restoreHistory(D.histIdx - 1); return true; } return false; }
 function redo() { if (D.histIdx < D.hist.length - 1) { restoreHistory(D.histIdx + 1); return true; } return false; }
 
-// ─── persistence (IndexedDB) ─────────────────────────────────────
-function openDb() {
-  return new Promise((resolve, reject) => {
-    const r = indexedDB.open('secondmap-design', 1);
-    r.onupgradeneeded = () => r.result.createObjectStore('kv');
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error);
-  });
-}
-
-async function loadDoc() {
-  try {
-    const db = await openDb();
-    return await new Promise(resolve => {
-      const req = db.transaction('kv').objectStore('kv').get('doc');
-      req.onsuccess = () => resolve(req.result || null);
-      req.onerror = () => resolve(null);
-    });
-  } catch (e) { console.error('Design load failed', e); return null; }
-}
-
+// ─── persistence (IndexedDB, see design/design-db.js) ────────────
 let persistTimer = null;
 function schedulePersist() {
   clearTimeout(persistTimer);
@@ -231,8 +202,8 @@ async function saveDocNow() {
   clearTimeout(persistTimer);
   try {
     D.doc.pageId = D.pageId;
-    const db = await openDb();
-    db.transaction('kv', 'readwrite').objectStore('kv').put(JSON.parse(JSON.stringify(D.doc)), 'doc');
+    await saveDesignDoc(JSON.parse(JSON.stringify(D.doc)));
+    renderDesignsList();
   } catch (e) { console.error('Design save failed', e); }
 }
 

@@ -52,6 +52,42 @@ function inlineRename(host, value, onDone) {
   input.addEventListener('click', e => e.stopPropagation());
 }
 
+// ─── designs (the document library; see design/design-db.js) ────
+function renderDesignsList() {
+  getAllDesignDocs().then(docs => {
+    docs.sort((a, b) => (b.updated || b.created) - (a.updated || a.created));
+    $('d-designs').innerHTML = docs.map(doc => `
+      <div class="d-page${doc.id === D.doc.id ? ' active' : ''}" data-did="${doc.id}">
+        <span class="d-page-name">${esc(doc.name)}</span>
+        ${docs.length > 1 ? '<button class="d-icon-btn" data-act="del-design" title="Delete design">×</button>' : ''}
+      </div>`).join('');
+  });
+}
+
+$('d-designs').addEventListener('click', e => {
+  const row = e.target.closest('.d-page');
+  if (!row) return;
+  if (e.target.closest('[data-act="del-design"]')) { deleteDesignPrompt(row.dataset.did); return; }
+  switchDesign(row.dataset.did);
+});
+$('d-designs').addEventListener('dblclick', e => {
+  const row = e.target.closest('.d-page');
+  if (!row) return;
+  const nameEl = row.querySelector('.d-page-name');
+  const finish = async name => { await renameDesignDoc(row.dataset.did, name); if (row.dataset.did === D.doc.id) D.doc.name = name; renderDesignsList(); };
+  const input = document.createElement('input');
+  input.className = 'd-rename';
+  input.value = nameEl.textContent;
+  nameEl.replaceWith(input);
+  input.focus(); input.select();
+  let done = false;
+  const end = ok => { if (done) return; done = true; if (ok && input.value.trim()) finish(input.value.trim()); else renderDesignsList(); };
+  input.addEventListener('keydown', ev => { ev.stopPropagation(); if (ev.key === 'Enter') end(true); if (ev.key === 'Escape') end(false); });
+  input.addEventListener('blur', () => end(true));
+  input.addEventListener('click', ev => ev.stopPropagation());
+});
+$('d-add-design').addEventListener('click', createDesignAndSwitch);
+
 // ─── pages ───────────────────────────────────────────────────────
 function renderPages() {
   $('d-pages').innerHTML = D.doc.pages.map(p => `
@@ -117,9 +153,78 @@ function layerRows(list, indent, out) {
 
 function renderLayers() {
   const out = [];
-  layerRows(curPage().children, 0, out);
-  layersEl.innerHTML = out.length ? out.join('') : '<div class="d-empty">No layers yet.</div>';
+  if (D.layerFilter.size) {
+    const matches = [];
+    eachNode(curPage().children, n => { if (D.layerFilter.has(n.type)) matches.push(n); });
+    for (const n of matches) {
+      const cls = ['d-layer', 'filtered'];
+      if (D.sel.includes(n.id)) cls.push('sel');
+      if (n.visible === false) cls.push('hidden');
+      if (isCompNode(n)) cls.push('comp');
+      out.push(`<div class="${cls.join(' ')}" data-lid="${n.id}" style="padding-left:8px">
+        <span class="d-caret"></span>
+        <span class="d-licon">${n.isComponent ? '◆' : TYPE_ICON[n.type] || '•'}</span>
+        <span class="d-lname">${esc(n.name)}</span>
+        <button class="d-lbtn${n.locked ? ' on' : ''}" data-act="lock" title="Lock / unlock">${n.locked ? '🔒' : '·'}</button>
+        <button class="d-lbtn${n.visible === false ? ' on' : ''}" data-act="vis" title="Show / hide">${n.visible === false ? '○' : '●'}</button>
+      </div>`);
+    }
+  } else {
+    layerRows(curPage().children, 0, out);
+  }
+  layersEl.innerHTML = out.length ? out.join('') : `<div class="d-empty">${D.layerFilter.size ? 'No layers of the selected type.' : 'No layers yet.'}</div>`;
 }
+
+// Filter popover: narrows the layers panel to one or more node types (handy in large documents).
+function layerTypesInDoc() {
+  const types = new Set();
+  eachNode(curPage().children, n => types.add(n.type));
+  return Object.keys(TYPE_ICON).filter(t => types.has(t));
+}
+
+function closeLayerFilterMenu() { document.querySelector('.d-filter-menu')?.remove(); }
+
+function syncLayerFilterClearBtn(menu) {
+  let btn = menu.querySelector('#d-filter-clear');
+  if (D.layerFilter.size && !btn) {
+    btn = document.createElement('button');
+    btn.className = 'd-wide'; btn.id = 'd-filter-clear'; btn.textContent = 'Show all';
+    btn.addEventListener('click', () => { D.layerFilter.clear(); renderLayers(); $('d-layer-filter').classList.remove('on'); closeLayerFilterMenu(); });
+    menu.appendChild(btn);
+  } else if (!D.layerFilter.size && btn) btn.remove();
+}
+
+function toggleLayerFilterMenu() {
+  if (document.querySelector('.d-filter-menu')) { closeLayerFilterMenu(); return; }
+  const types = layerTypesInDoc();
+  const menu = document.createElement('div');
+  menu.className = 'd-filter-menu';
+  menu.innerHTML = types.length ? types.map(t => `<label class="d-filter-row"><input type="checkbox" value="${t}" ${D.layerFilter.has(t) ? 'checked' : ''}><span>${TYPE_ICON[t]} ${t}</span></label>`).join('')
+    : '<div class="d-note">No layers yet.</div>';
+  $('d-left-tabs').appendChild(menu);
+  syncLayerFilterClearBtn(menu);
+  menu.addEventListener('change', e => {
+    const cb = e.target.closest('input[type=checkbox]');
+    if (!cb) return;
+    if (cb.checked) D.layerFilter.add(cb.value); else D.layerFilter.delete(cb.value);
+    renderLayers();
+    $('d-layer-filter').classList.toggle('on', D.layerFilter.size > 0);
+    syncLayerFilterClearBtn(menu);
+  });
+  setTimeout(() => document.addEventListener('click', function off(e) {
+    if (!menu.contains(e.target) && e.target !== $('d-layer-filter') && !$('d-layer-filter').contains(e.target)) { menu.remove(); document.removeEventListener('click', off); }
+  }), 0);
+}
+$('d-layer-filter').addEventListener('click', e => { e.stopPropagation(); toggleLayerFilterMenu(); });
+
+// Hovering a row previews the layer on canvas, mirroring canvas-side hover (handy on trackpads where
+// hovering is easier than fine clicking on a small shape).
+layersEl.addEventListener('mouseover', e => {
+  const row = e.target.closest('.d-layer');
+  const id = row && row.dataset.lid;
+  if (id && id !== D.hover) { D.hover = id; renderOverlay(); }
+});
+layersEl.addEventListener('mouseleave', () => { if (D.hover) { D.hover = null; renderOverlay(); } });
 
 layersEl.addEventListener('click', e => {
   const row = e.target.closest('.d-layer');
@@ -211,6 +316,21 @@ function renderAssets() {
     tile.appendChild(label);
     grid.appendChild(tile);
   }
+  const groupNodes = [];
+  eachNodeAllPages(n => { if (n.type === 'group') groupNodes.push(n); });
+  const gs = section('Groups', groupNodes.length ? '' : '<div class="d-empty">Group some layers (<kbd>Ctrl+G</kbd>) to reuse a copy of them here.</div>');
+  const ggrid = gs.querySelector('.d-asset-grid');
+  for (const g of groupNodes) {
+    const tile = document.createElement('div');
+    tile.className = 'd-asset';
+    tile.draggable = true;
+    tile.dataset.kind = 'group'; tile.dataset.id = g.id; tile.title = g.name;
+    tile.appendChild(buildThumb(g, 56));
+    const label = document.createElement('span');
+    label.textContent = g.name;
+    tile.appendChild(label);
+    ggrid.appendChild(tile);
+  }
   section('Images', D.doc.assets.length ? D.doc.assets.map(a => assetTile('image', a.id, a.name, `<img src="${a.dataUrl}" draggable="false">`)).join('') : '<div class="d-empty">Upload images or drop image files onto the canvas.</div>',
     '<button class="d-icon-btn" data-act="upload" title="Upload images">+</button>');
   section('Icons', BUILTIN_ASSETS.map(a => assetTile('icon', a.id, a.name, `<img src="${a.dataUrl}" draggable="false">`)).join(''));
@@ -222,11 +342,11 @@ assetsEl.addEventListener('click', e => {
   const tile = e.target.closest('.d-asset');
   if (!tile) return;
   if (act === 'del-asset') { deleteAsset(tile.dataset.id); return; }
-  insertAssetAtCenter(tile.dataset.kind === 'component' ? 'component' : 'image', tile.dataset.id);
+  insertAssetAtCenter(['component', 'group'].includes(tile.dataset.kind) ? tile.dataset.kind : 'image', tile.dataset.id);
 });
 assetsEl.addEventListener('dblclick', e => {
   const tile = e.target.closest('.d-asset');
-  if (!tile || tile.dataset.kind !== 'component') return;
+  if (!tile || !['component', 'group'].includes(tile.dataset.kind)) return;
   const entry = byId.get(tile.dataset.id);
   if (!entry) return;
   if (entry.pageId !== D.pageId) switchPage(entry.pageId);
@@ -334,6 +454,19 @@ function handleField(e, final) {
 
 propsEl.addEventListener('input', e => handleField(e, false));
 propsEl.addEventListener('change', e => handleField(e, true));
+
+// Scroll-to-adjust: with a number field focused, the mouse wheel / trackpad nudges its value
+// (Shift for a bigger step) instead of scrolling the panel — handy without precise click-dragging.
+propsEl.addEventListener('wheel', e => {
+  const el = e.target.closest('input[type=number]');
+  if (!el || document.activeElement !== el) return;
+  e.preventDefault();
+  const step = (parseFloat(el.step) || 1) * (e.shiftKey ? 10 : 1);
+  el.value = (parseFloat(el.value) || 0) + (e.deltaY < 0 ? step : -step);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+  clearTimeout(propsEl._wheelCommit);
+  propsEl._wheelCommit = setTimeout(() => el.dispatchEvent(new Event('change', { bubbles: true })), 250);
+}, { passive: false });
 
 // F2 / double-click on a canvas label: jump to the name field of the selected layer.
 function renameSelection() {
