@@ -107,6 +107,14 @@ kbd { font-family: var(--font-mono); font-size: 10px; background: var(--surface2
 .ov-label { position: absolute; font-size: 11px; color: #ffffffa0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: auto; cursor: default; padding: 1px 2px; }
 .ov-label:hover, .ov-label.sel { color: #fff; }
 .ov-label.sel { color: var(--select); }
+.ov-label.comp, .ov-label.comp.sel { color: var(--component); }
+.ov-label.comp:hover { color: #d4b3ff; }
+.ov-links { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.ov-link-line { fill: none; stroke: var(--select); stroke-width: 1.8; }
+.ov-link-dot { fill: var(--select); stroke: #fff; stroke-width: 1.5; }
+.ov-link-head { fill: var(--select); }
+.ov.link-target { outline: 1.5px dashed var(--select); outline-offset: 2px; }
+.ov-badge { position: absolute; transform: translate(0, -50%); background: var(--select); color: #fff; font-size: 10px; padding: 1px 6px; border-radius: 9px; white-space: nowrap; pointer-events: none; }
 .ov-handle { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; background: #fff; border: 1.5px solid var(--select); border-radius: 2px; pointer-events: auto; }
 .h-nw, .h-se { cursor: nwse-resize; } .h-ne, .h-sw { cursor: nesw-resize; } .h-n, .h-s { cursor: ns-resize; } .h-e, .h-w { cursor: ew-resize; }
 .ov-size { position: absolute; transform: translateX(-50%); background: var(--select); color: #fff; font: 10px var(--font-mono); padding: 1px 5px; border-radius: 3px; white-space: nowrap; }
@@ -125,6 +133,8 @@ kbd { font-family: var(--font-mono); font-size: 10px; background: var(--surface2
 .f-line { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: var(--text2); }
 .f-line > span { width: 54px; flex-shrink: 0; }
 .f-line select { flex: 1; min-width: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; height: 26px; padding: 0 4px; outline: none; }
+.f-line .f-name { flex: 1; min-width: 0; background: var(--surface2); border: 1px solid var(--border); border-radius: 5px; height: 26px; padding: 0 8px; outline: none; }
+.f-line .f-name:focus { border-color: var(--accent); }
 .f-check { display: flex; align-items: center; gap: 6px; color: var(--text2); margin-top: 2px; }
 .f-color { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .f-color input[type=color] { width: 28px; height: 26px; border: 1px solid var(--border2); border-radius: 5px; background: none; padding: 1px; cursor: pointer; }
@@ -156,6 +166,8 @@ input[type=number], input[type=text] { user-select: text; }
 .d-hint { color: var(--text2); }
 #d-present-stage { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; user-select: none; }
 .d-present-frame { position: relative; box-shadow: 0 10px 40px #000a; }
+.d-present-frame.fade-in { animation: d-fade-in .25s ease-out; }
+@keyframes d-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
 #d-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--surface2); border: 1px solid var(--border2); padding: 8px 16px; border-radius: 8px; opacity: 0; pointer-events: none; transition: .2s; z-index: 200; }
 #d-toast.show { opacity: 1; transform: translateX(-50%); }

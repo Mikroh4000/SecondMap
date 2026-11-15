@@ -375,6 +375,8 @@
     min-width: 0;
   }
   .node-title:focus { color: var(--accent); }
+  .node-title:not(:focus) { cursor: inherit; }
+  body.is-interacting, body.is-interacting * { user-select: none !important; -webkit-user-select: none !important; }
 
   .node-actions {
     display: flex;
@@ -414,6 +416,13 @@
   .node-body strong { color: var(--text); font-weight: 600; }
   .node-body em { font-style: italic; color: var(--text); }
   .node-body code { background: var(--surface2); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+
+  /* EMBEDDED DESIGN (design editor frame/component shown inside a node) */
+  .node-design { position: relative; flex-shrink: 0; align-self: stretch; overflow: hidden; margin: 8px 12px 0; border-radius: 6px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+  .node-design.pending, .node-design.missing { padding: 14px 8px; text-align: center; font-size: 11px; color: var(--text2); }
+  .node-design.missing { color: var(--danger); border: 1px dashed var(--danger); }
+  .node-design .dn { pointer-events: none !important; }
+  .node-design .dn.missing { display: flex; align-items: center; justify-content: center; border: 1px dashed var(--danger); color: var(--danger); font-size: 11px; }
 
   /* CONNECT HANDLE */
   .node-connect-handle {
@@ -693,7 +702,7 @@
     cursor: default;
   }
 
-  .group-del-btn {
+  .group-add-btn, .group-del-btn {
     width: 18px; height: 18px;
     background: transparent;
     border: none;
@@ -707,7 +716,8 @@
     opacity: 0;
     transition: opacity 0.15s, background 0.1s;
   }
-  .group-box:hover .group-del-btn { opacity: 0.6; }
+  .group-box:hover .group-add-btn, .group-box:hover .group-del-btn { opacity: 0.6; }
+  .group-add-btn:hover { opacity: 1 !important; background: rgba(200,240,100,0.2); color: var(--accent); }
   .group-del-btn:hover { opacity: 1 !important; background: rgba(240,100,100,0.2); color: var(--danger); }
 
   /* BREADCRUMBS */

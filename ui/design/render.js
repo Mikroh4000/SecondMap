@@ -5,20 +5,8 @@ const worldEl = $('d-world');
 const overlayEl = $('d-overlay');
 const elMap = new Map(); // node id -> live element
 
-const FONTS = {
-  sans: 'Inter, "Segoe UI", system-ui, sans-serif',
-  serif: 'Georgia, "Times New Roman", serif',
-  mono: '"IBM Plex Mono", Consolas, monospace',
-  display: 'Syne, "Segoe UI", sans-serif',
-};
-
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-function rgba(hex, alpha) {
-  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || '');
-  return m ? `rgba(${parseInt(m[1], 16)},${parseInt(m[2], 16)},${parseInt(m[3], 16)},${alpha})` : hex;
 }
 
 function showToast(msg, kind = '') {
@@ -81,90 +69,7 @@ function fitView(ids) {
 }
 
 // ─── node elements ───────────────────────────────────────────────
-function createEl(n) {
-  const el = document.createElement('div');
-  el.className = 'dn dn-' + n.type;
-  el._type = n.type;
-  if (n.type === 'image') {
-    const img = document.createElement('img');
-    img.draggable = false;
-    img.style.cssText = 'width:100%;height:100%;display:block;pointer-events:none';
-    el.appendChild(img);
-  }
-  return el;
-}
-
-function applyStyle(el, n, opt = {}) {
-  const s = el.style, t = n.type;
-  s.position = 'absolute'; s.boxSizing = 'border-box'; s.margin = '0';
-  s.left = opt.root ? '0px' : n.x + 'px';
-  s.top = opt.root ? '0px' : n.y + 'px';
-  s.width = n.w + 'px';
-  s.height = (t === 'text' && n.autoH !== false) ? 'auto' : n.h + 'px';
-  s.opacity = n.opacity === 1 ? '' : n.opacity;
-  s.display = (n.visible === false && !opt.root) ? 'none' : '';
-  s.pointerEvents = t === 'group' ? 'none' : 'auto';
-  const shadow = n.shadow ? `${n.shadow.x}px ${n.shadow.y}px ${n.shadow.blur}px ${rgba(n.shadow.color, n.shadow.alpha ?? 1)}` : '';
-  if (t === 'frame' || t === 'rect' || t === 'ellipse' || t === 'image') {
-    s.background = n.fill && t !== 'image' ? n.fill : 'transparent';
-    // outline keeps the stroke inside the box without shifting child coordinates
-    s.outline = n.stroke ? `${n.strokeWidth}px solid ${n.stroke}` : 'none';
-    s.outlineOffset = n.stroke ? `-${n.strokeWidth}px` : '0';
-    s.borderRadius = t === 'ellipse' ? '50%' : (n.radius || 0) + 'px';
-    s.boxShadow = shadow;
-    s.overflow = (t === 'frame' && n.clip !== false) || t === 'image' ? 'hidden' : 'visible';
-  }
-  if (t === 'text') {
-    s.color = n.fill || '#111';
-    s.fontSize = n.fontSize + 'px';
-    s.fontWeight = n.fontWeight;
-    s.fontFamily = FONTS[n.font] || FONTS.sans;
-    s.textAlign = n.align;
-    s.whiteSpace = 'pre-wrap'; s.wordBreak = 'break-word'; s.lineHeight = '1.25';
-    s.textShadow = n.shadow ? shadow : '';
-    if (D.editing !== n.id && el._text !== n.text) { el.textContent = n.text; el._text = n.text; }
-  }
-  if (t === 'image') {
-    const a = getAsset(n.assetId), img = el.firstChild;
-    const src = a ? a.dataUrl : '';
-    if (img._src !== src) { img.src = src; img._src = src; }
-    img.style.objectFit = n.fit || 'cover';
-  }
-}
-
-function fillInstance(el, n, depth) {
-  const m = nodeOf(n.componentId);
-  if (!m || depth > 6) {
-    if (el._sig !== 'missing') { el.textContent = 'Missing component'; el.className = 'dn dn-instance missing'; el._sig = 'missing'; el._inner = null; }
-    return;
-  }
-  const sig = JSON.stringify([m, n.overrides || null]);
-  if (el._sig !== sig) {
-    el.textContent = '';
-    el.className = 'dn dn-instance';
-    el._inner = buildStatic(m, { root: true, overrides: n.overrides, depth: depth + 1 });
-    el.appendChild(el._inner);
-    el._sig = sig;
-  }
-  el._inner.style.transformOrigin = '0 0';
-  el._inner.style.transform = `scale(${n.w / (m.w || 1)}, ${n.h / (m.h || 1)})`;
-}
-
-// Stand-alone DOM for a node (instances, thumbnails, export, prototype playback).
-function buildStatic(n, opt = {}) {
-  const depth = opt.depth || 0;
-  if (opt.overrides && opt.overrides[n.id]) n = { ...n, ...opt.overrides[n.id] };
-  const el = createEl(n);
-  applyStyle(el, n, opt);
-  if (n.type === 'text') { el.textContent = n.text; el._text = n.text; }
-  if (opt.interactive) el.dataset.pid = n.id;
-  if (n.type === 'instance') fillInstance(el, n, depth);
-  else if (n.children) {
-    for (const c of n.children) el.appendChild(buildStatic(c, { ...opt, root: false, depth }));
-  }
-  return el;
-}
-
+// createEl / applyStyle / fillInstance / buildStatic live in static.js (shared with the mind map).
 function syncList(parentEl, nodes) {
   nodes.forEach((n, i) => {
     let el = elMap.get(n.id);
@@ -215,15 +120,80 @@ function selBounds(ids) {
   return ids.length ? { x: x1, y: y1, w: x2 - x1, h: y2 - y1 } : null;
 }
 
+const LABEL_TYPES = ['frame', 'rect', 'ellipse', 'image', 'instance'];
+const isCompNode = n => !!(n.isComponent || n.type === 'instance');
+
+// Nodes whose prototype links are drawn: the selection, the hovered layer, or every link in the Prototype tab.
+function linkSources() {
+  const out = new Map();
+  const add = n => { if (n.link && n.visible !== false) out.set(n.id, n); };
+  if (rightTab() === 'prototype') eachNode(curPage().children, add);
+  else {
+    for (const id of D.sel) { const n = nodeOf(id); if (n) eachNode([n], add); }
+    if (D.hover && byId.has(D.hover)) eachNode([nodeOf(D.hover)], add);
+  }
+  return [...out.values()];
+}
+
+// Curve from the edge of rect `a` to the facing edge of rect `b` (screen coordinates).
+function linkCurve(a, b) {
+  let p1, p2, c1, c2;
+  const k = Math.max(40, Math.hypot(b.x - a.x, b.y - a.y) / 3);
+  if (b.y >= a.y + a.h && b.x < a.x + a.w && b.x + b.w > a.x) {
+    p1 = [a.x + a.w / 2, a.y + a.h]; p2 = [b.x + b.w / 2, b.y];
+    c1 = [p1[0], p1[1] + k]; c2 = [p2[0], p2[1] - k];
+  } else if (b.y + b.h <= a.y && b.x < a.x + a.w && b.x + b.w > a.x) {
+    p1 = [a.x + a.w / 2, a.y]; p2 = [b.x + b.w / 2, b.y + b.h];
+    c1 = [p1[0], p1[1] - k]; c2 = [p2[0], p2[1] + k];
+  } else if (b.x + b.w <= a.x) {
+    p1 = [a.x, a.y + a.h / 2]; p2 = [b.x + b.w, b.y + b.h / 2];
+    c1 = [p1[0] - k, p1[1]]; c2 = [p2[0] + k, p2[1]];
+  } else {
+    p1 = [a.x + a.w, a.y + a.h / 2]; p2 = [b.x, b.y + b.h / 2];
+    c1 = [p1[0] + k, p1[1]]; c2 = [p2[0] - k, p2[1]];
+  }
+  return { p1, p2, d: `M${p1} C${c1} ${c2} ${p2}`, mid: [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2] };
+}
+
+// Figma-like prototype connections: arrows from an interactive layer to the screen it opens.
+function linkOverlayHtml(v, z) {
+  const toScreen = r => ({ x: r.x * z + v.x, y: r.y * z + v.y, w: r.w * z, h: r.h * z });
+  let paths = '', extra = '';
+  const targets = new Set();
+  for (const n of linkSources()) {
+    const src = toScreen(absRect(n.id));
+    const badge = (text, x, y) => `<div class="ov-badge" style="left:${x}px;top:${y}px">${esc(text)}</div>`;
+    if (n.link.type === 'back') { extra += badge('↩ Back', src.x + src.w + 4, src.y); continue; }
+    const t = nodeOf(n.link.target);
+    if (!t || isInside(n.id, t.id)) continue;
+    const turn = n.link.turn ? (n.link.turn === 'ccw' ? ' ↺' : ' ↻') : '';
+    if (byId.get(t.id).pageId !== D.pageId) {
+      const page = D.doc.pages.find(p => p.id === byId.get(t.id).pageId);
+      extra += badge(`→ ${page ? page.name + ' / ' : ''}${t.name}${turn}`, src.x + src.w + 4, src.y);
+      continue;
+    }
+    const c = linkCurve(src, toScreen(absRect(t.id)));
+    targets.add(t.id);
+    paths += `<path class="ov-link-line" d="${c.d}" marker-end="url(#ov-arrow)"/><circle class="ov-link-dot" cx="${c.p1[0]}" cy="${c.p1[1]}" r="4"/>`;
+    if (turn) extra += badge(turn.trim(), c.mid[0], c.mid[1]);
+  }
+  if (!paths && !extra) return '';
+  let h = '';
+  for (const id of targets) h += `<div class="ov link-target" style="left:${absRect(id).x * z + v.x}px;top:${absRect(id).y * z + v.y}px;width:${absRect(id).w * z}px;height:${absRect(id).h * z}px"></div>`;
+  return h + `<svg class="ov-links"><defs><marker id="ov-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse"><path class="ov-link-head" d="M0,0 L10,5 L0,10 z"/></marker></defs>${paths}</svg>${extra}`;
+}
+
 function renderOverlay() {
   const v = view(), z = v.zoom;
   const box = (r, cls) => `<div class="ov ${cls}" style="left:${r.x * z + v.x}px;top:${r.y * z + v.y}px;width:${r.w * z}px;height:${r.h * z}px"></div>`;
   let h = '';
   for (const n of curPage().children) {
-    if (n.type !== 'frame' || n.visible === false) continue;
-    const cls = D.sel.includes(n.id) ? ' sel' : '';
-    h += `<div class="ov-label${cls}" data-label="${n.id}" style="left:${n.x * z + v.x}px;top:${n.y * z + v.y - 20}px;max-width:${Math.max(40, n.w * z)}px">${n.isComponent ? '◆ ' : ''}${esc(n.name)}</div>`;
+    if (!LABEL_TYPES.includes(n.type) || n.visible === false) continue;
+    const comp = isCompNode(n);
+    const cls = (D.sel.includes(n.id) ? ' sel' : '') + (comp ? ' comp' : '');
+    h += `<div class="ov-label${cls}" data-label="${n.id}" style="left:${n.x * z + v.x}px;top:${n.y * z + v.y - 20}px;max-width:${Math.max(80, n.w * z)}px">${comp ? '◆ ' : ''}${esc(n.name)}</div>`;
   }
+  h += linkOverlayHtml(v, z);
   if (D.hover && !D.sel.includes(D.hover) && byId.has(D.hover)) h += box(absRect(D.hover), 'hover');
   if (D.dropTarget && byId.has(D.dropTarget)) h += box(absRect(D.dropTarget), 'drop');
   for (const id of D.sel) {

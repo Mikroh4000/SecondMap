@@ -23,7 +23,7 @@ $('d-right-tabs').addEventListener('click', e => {
   const b = e.target.closest('button');
   if (!b) return;
   setTabs('d-right-tabs', b.dataset.tab, { design: propsEl, prototype: protoEl });
-  renderProps(); renderProto();
+  renderProps(); renderProto(); renderOverlay();
 });
 
 function updateToolbar() {
@@ -78,16 +78,33 @@ $('d-add-page').addEventListener('click', addPage);
 // ─── layers ──────────────────────────────────────────────────────
 const TYPE_ICON = { frame: '#', rect: '▭', ellipse: '◯', text: 'T', image: '▣', group: '▤', instance: '◇' };
 
-function layerRows(list, depth, out) {
+// Extra indent per sibling: a layer lying on top of (and inside) a bigger lower layer is shown one step further in.
+function stackIndents(list) {
+  const extra = new Array(list.length).fill(0);
+  for (let i = 0; i < list.length; i++) {
+    const n = list[i], area = n.w * n.h;
+    for (let j = 0; j < i; j++) {
+      const m = list[j];
+      if (m.visible === false || m.w * m.h <= area) continue;
+      if (n.x >= m.x && n.y >= m.y && n.x + n.w <= m.x + m.w && n.y + n.h <= m.y + m.h) extra[i] = Math.max(extra[i], extra[j] + 1);
+    }
+    extra[i] = Math.min(extra[i], 6);
+  }
+  return extra;
+}
+
+function layerRows(list, indent, out) {
+  const extra = stackIndents(list);
   for (let i = list.length - 1; i >= 0; i--) {
-    const n = list[i];
+    const n = list[i], depth = indent + extra[i];
     const hasKids = !!(n.children && n.children.length);
     const collapsed = D.collapsed.has(n.id);
     const cls = ['d-layer'];
     if (D.sel.includes(n.id)) cls.push('sel');
     if (n.visible === false) cls.push('hidden');
-    if (n.isComponent || n.type === 'instance') cls.push('comp');
-    out.push(`<div class="${cls.join(' ')}" draggable="true" data-lid="${n.id}" style="padding-left:${8 + depth * 14}px">
+    if (isCompNode(n)) cls.push('comp');
+    const tip = extra[i] ? ' title="On top of a larger layer"' : '';
+    out.push(`<div class="${cls.join(' ')}" draggable="true" data-lid="${n.id}"${tip} style="padding-left:${8 + depth * 14}px">
       <span class="d-caret" data-act="caret">${hasKids ? (collapsed ? '▸' : '▾') : ''}</span>
       <span class="d-licon">${n.isComponent ? '◆' : TYPE_ICON[n.type] || '•'}</span>
       <span class="d-lname">${esc(n.name)}</span>
@@ -252,6 +269,7 @@ function applyProp(n, k, v) {
   const num = (min, max) => Math.min(max, Math.max(min, v));
   switch (k) {
     case 'x': case 'y': n[k] = v; break;
+    case 'name': if (String(v).trim()) n.name = String(v).trim(); break;
     case 'w': case 'h':
       v = Math.max(1, v);
       if (n.type === 'group') scaleDescendants(n, k === 'w' ? v / n.w : 1, k === 'h' ? v / n.h : 1);
@@ -280,7 +298,7 @@ function applyProp(n, k, v) {
 
 function fieldTargets(k) {
   const nodes = D.sel.map(nodeOf).filter(n => n && !n.locked);
-  return ['x', 'y', 'w', 'h'].includes(k) ? nodes.slice(0, 1) : nodes;
+  return ['x', 'y', 'w', 'h', 'name'].includes(k) ? nodes.slice(0, 1) : nodes;
 }
 
 function handleField(e, final) {
@@ -316,6 +334,15 @@ function handleField(e, final) {
 
 propsEl.addEventListener('input', e => handleField(e, false));
 propsEl.addEventListener('change', e => handleField(e, true));
+
+// F2 / double-click on a canvas label: jump to the name field of the selected layer.
+function renameSelection() {
+  if (selRoots().length !== 1) return;
+  setTabs('d-right-tabs', 'design', { design: propsEl, prototype: protoEl });
+  renderProps();
+  const input = propsEl.querySelector('[data-k="name"]');
+  if (input) { input.focus(); input.select(); }
+}
 
 // Updates field values in place (the focused field is left alone so typing is not interrupted).
 function syncPropValues() {
@@ -357,6 +384,7 @@ function propsFor(nodes) {
   const opacityRadius = `<div class="f-grid">${fnum('opacity', '%', readProp(first, 'opacity'), 1, 0)}${has(RADIUS_TYPES) ? fnum('radius', 'R', readProp(firstOf(RADIUS_TYPES), 'radius'), 1, 0) : ''}</div>`;
   if (single) {
     h += section('Layer', `
+      <label class="f-line"><span>Name</span><input type="text" class="f-name" data-k="name" value="${esc(first.name)}" spellcheck="false" title="Rename (F2)"></label>
       <div class="f-grid">${fnum('x', 'X', readProp(first, 'x'))}${fnum('y', 'Y', readProp(first, 'y'))}${fnum('w', 'W', readProp(first, 'w'), 1, 1)}${fnum('h', 'H', readProp(first, 'h'), 1, 1)}</div>
       ${opacityRadius}
       ${first.type === 'frame' ? `<label class="f-line"><span>Preset</span><select data-k="preset"><option value="">Size preset…</option>${FRAME_PRESETS.map((p, i) => `<option value="${i}">${p[0]}</option>`).join('')}</select></label>
@@ -498,7 +526,11 @@ function renderProto() {
         <option value="">Nothing</option>
         <option value="navigate"${l && l.type === 'navigate' ? ' selected' : ''}>Navigate to…</option>
         <option value="back"${l && l.type === 'back' ? ' selected' : ''}>Back</option></select></label>
-      ${l && l.type === 'navigate' ? `<label class="f-line"><span>Frame</span><select id="d-link-target">${opts}</select></label>` : ''}`);
+      ${l && l.type === 'navigate' ? `<label class="f-line"><span>Frame</span><select id="d-link-target">${opts}</select></label>
+      <label class="f-line"><span>Turn</span><select id="d-link-turn" title="Turn the display sideways when this is clicked">
+        <option value="">Keep orientation</option>
+        <option value="cw"${l.turn === 'cw' ? ' selected' : ''}>Turn sideways ↻ (clockwise)</option>
+        <option value="ccw"${l.turn === 'ccw' ? ' selected' : ''}>Turn sideways ↺ (counter-clockwise)</option></select></label>` : ''}`);
   } else {
     h += '<div class="d-note pad">Select a button, shape or frame to make it clickable in the prototype.</div>';
   }
@@ -507,7 +539,8 @@ function renderProto() {
   h += section('Flows', links.length ? links.map(n => {
     const t = n.link.type === 'navigate' ? nodeOf(n.link.target) : null;
     const label = n.link.type === 'back' ? 'Back' : (t ? esc(t.name) : '<i>missing frame</i>');
-    return `<div class="d-flow" data-nid="${n.id}">${esc(n.name)} <span>→</span> ${label}</div>`;
+    const turn = n.link.turn ? (n.link.turn === 'ccw' ? ' ↺' : ' ↻') : '';
+    return `<div class="d-flow" data-nid="${n.id}">${esc(n.name)} <span>→</span> ${label}${turn}</div>`;
   }).join('') : '<div class="d-note">No interactions yet.</div>') +
     '<div class="d-note pad">Present (Ctrl+Enter) starts at the selected frame, or the first frame of this page.</div>';
   protoEl.innerHTML = h;
@@ -526,7 +559,10 @@ protoEl.addEventListener('change', e => {
     } else n.link = v === 'back' ? { type: 'back' } : null;
     afterChange();
   } else if (e.target.id === 'd-link-target') {
-    n.link = { type: 'navigate', target: e.target.value };
+    n.link = { ...n.link, type: 'navigate', target: e.target.value };
+    afterChange();
+  } else if (e.target.id === 'd-link-turn') {
+    if (e.target.value) n.link.turn = e.target.value; else delete n.link.turn;
     afterChange();
   }
 });

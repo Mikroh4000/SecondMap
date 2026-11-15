@@ -49,6 +49,7 @@ function createNodeEl(node) {
   `;
   el.style.setProperty('--node-color', node.color || NODE_COLORS[0]);
   renderNodeBody(el, node);
+  renderNodeDesign(el, node);
 
   const titleInput = el.querySelector('.node-title');
   titleInput.addEventListener('change', async () => {
@@ -58,7 +59,7 @@ function createNodeEl(node) {
   titleInput.addEventListener('input', () => {
     el.querySelector('.node-graph-label').textContent = titleInput.value;
   });
-  titleInput.addEventListener('mousedown', e => e.stopPropagation());
+  // The title only takes the mouse when it is focused (see onNodeMouseDown), otherwise the node is dragged.
   titleInput.addEventListener('keydown', e => { if (e.key === 'Enter') titleInput.blur(); e.stopPropagation(); });
 
   el.addEventListener('mousedown', e => onNodeMouseDown(e, node.id));
@@ -85,6 +86,7 @@ function renderNode(node) {
     const graphLabel = el.querySelector('.node-graph-label');
     if (graphLabel) graphLabel.textContent = node.title || '';
     renderNodeBody(el, node);
+    renderNodeDesign(el, node);
     const titleInput = el.querySelector('.node-title');
     if (titleInput && document.activeElement !== titleInput) titleInput.value = node.title || '';
     // Update favorite star

@@ -6,7 +6,7 @@ function openEdit(id) {
   if (!n) return;
   selectNode(id);
 
-  const oldData = { title: n.title, content: n.content, color: n.color, template: n.template, priority: n.priority, width: n.width, subMapId: n.subMapId, tags: [...(n.tags||[])], favorite: n.favorite, attachments: [...(n.attachments||[])] };
+  const oldData = { title: n.title, content: n.content, color: n.color, template: n.template, priority: n.priority, width: n.width, subMapId: n.subMapId, tags: [...(n.tags||[])], favorite: n.favorite, designId: n.designId || null, attachments: [...(n.attachments||[])] };
 
   const backdrop = document.createElement('div');
   backdrop.className = 'modal-backdrop';
@@ -67,6 +67,11 @@ function openEdit(id) {
             <input type="checkbox" id="edit-favorite" ${n.favorite ? 'checked' : ''}/>
             <span>★ Als Favorit markieren</span>
           </label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Design</label>
+          <select class="form-input" id="edit-design"><option value="">Kein Design</option>${n.designId ? `<option value="${escHtml(n.designId)}" selected>(wird geladen …)</option>` : ''}</select>
+          <span class="form-hint">Zeigt einen Screen oder eine Komponente aus dem Design-Editor live im Block an (Doppelklick öffnet ihn dort).</span>
         </div>
         <div class="form-group">
           <label class="form-label">Sub-Map</label>
@@ -193,6 +198,10 @@ function openEdit(id) {
     fileInput.click();
   });
 
+  // Design picker
+  const designSelect = backdrop.querySelector('#edit-design');
+  fillDesignSelect(designSelect, n.designId);
+
   // Sub-map button
   backdrop.querySelector('#edit-create-submap').addEventListener('click', async () => {
     if (n.subMapId) {
@@ -236,6 +245,7 @@ function openEdit(id) {
       subMapId: n.subMapId,
       tags: editTags,
       favorite: backdrop.querySelector('#edit-favorite').checked,
+      designId: designSelect.value || null,
       attachments: editAttachments
     };
     const sel = colorRow.querySelector('.color-option.selected');

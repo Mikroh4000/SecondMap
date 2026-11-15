@@ -34,6 +34,7 @@ function renderGroups() {
       gEl.style.borderColor = group.color || '#555';
       gEl.style.background = (group.color || '#555') + '12';
       gEl.innerHTML = `<div class="group-label" style="color:${group.color || '#999'}">${escHtml(group.name || 'Gruppe')}
+        <button class="group-add-btn" onclick="addSelectedToGroup('${group.id}')" title="Ausgewählte Blöcke zur Gruppe hinzufügen">+</button>
         <button class="group-del-btn" onclick="deleteGroupById('${group.id}')" title="Gruppe auflösen">×</button>
       </div>`;
       gEl.querySelector('.group-label').addEventListener('dblclick', () => renameGroup(group.id));
@@ -68,6 +69,43 @@ async function createGroup(name, nodeIds) {
   renderGroups();
   showToast('Gruppe erstellt', 'success');
   return group;
+}
+
+// Moves nodes into an existing group (works after the group has been created).
+async function addNodesToGroup(groupId, nodeIds) {
+  const group = state.groups.find(g => g.id === groupId);
+  if (!group) return;
+  const changes = [];
+  for (const nid of nodeIds) {
+    const n = state.nodes.find(x => x.id === nid);
+    if (!n || n.groupId === groupId) continue;
+    changes.push({ id: nid, oldGroupId: n.groupId || null, newGroupId: groupId });
+    n.groupId = groupId;
+    await saveNode(n);
+  }
+  if (!changes.length) { showToast('Die Blöcke sind bereits in dieser Gruppe'); return; }
+  pushUndo({ type: 'set-group', changes });
+  await updateMapTimestamp();
+  renderGroups();
+  showToast(`${changes.length} Block${changes.length > 1 ? 'e' : ''} zu „${group.name}“ hinzugefügt`, 'success');
+}
+
+function addSelectedToGroup(groupId) {
+  if (state.selectedNodes.size === 0) { showToast('Zuerst Blöcke auswählen, dann + klicken'); return; }
+  return addNodesToGroup(groupId, [...state.selectedNodes]);
+}
+window.addSelectedToGroup = addSelectedToGroup;
+
+// Group button / Ctrl+G: a selection that mixes the members of one group with loose nodes extends that group,
+// anything else creates a new group.
+async function groupSelectedNodes() {
+  const sel = [...state.selectedNodes].map(id => state.nodes.find(n => n.id === id)).filter(Boolean);
+  const groupIds = [...new Set(sel.map(n => n.groupId).filter(Boolean))];
+  const loose = sel.filter(n => !n.groupId);
+  if (groupIds.length === 1 && loose.length) { await addNodesToGroup(groupIds[0], loose.map(n => n.id)); return; }
+  if (sel.length < 2) { showToast('Mindestens 2 Blöcke auswählen zum Gruppieren'); return; }
+  const name = prompt('Gruppenname:', 'Gruppe');
+  if (name !== null) await createGroup(name, sel.map(n => n.id));
 }
 
 async function deleteGroupById(groupId) {

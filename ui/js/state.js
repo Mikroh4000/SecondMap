@@ -13,6 +13,7 @@ let state = {
   dragging: null,
   dragOffset: { x: 0, y: 0 },
   dragStartPositions: null,
+  titleClick: null, // { id, x, y }: node title pressed (focused on release unless the mouse moved)
   panning: false,
   panStart: { x: 0, y: 0 },
   panOrigin: { x: 0, y: 0 },

@@ -3,6 +3,7 @@
 const presentEl = $('d-present-overlay');
 const presentStage = $('d-present-stage');
 const presentState = { stack: [], frameId: null };
+let presentTurning = false;
 
 function startPresent() {
   let startId = null;
@@ -18,7 +19,24 @@ function startPresent() {
   showPresentFrame(startId);
 }
 
-function showPresentFrame(id) {
+function showPresentFrame(id, turn) {
+  if (!nodeOf(id)) return;
+  const old = presentStage.firstChild;
+  if (turn && old && !presentTurning) turnDisplay(old, turn, () => renderPresentFrame(id, true));
+  else renderPresentFrame(id, false);
+}
+
+// The display is physically turned sideways before the next screen appears.
+function turnDisplay(wrap, turn, done) {
+  presentTurning = true;
+  const r = presentStage.getBoundingClientRect();
+  const s = Math.min(1, (r.width - 40) / wrap.offsetHeight, (r.height - 40) / wrap.offsetWidth);
+  wrap.style.transition = 'transform .5s ease-in-out';
+  wrap.style.transform = `rotate(${turn === 'ccw' ? -90 : 90}deg) scale(${s})`;
+  setTimeout(() => { presentTurning = false; if (!presentEl.hidden) done(); }, 520);
+}
+
+function renderPresentFrame(id, fadeIn) {
   const f = nodeOf(id);
   if (!f) return;
   presentState.frameId = id;
@@ -31,7 +49,7 @@ function showPresentFrame(id) {
     if (n && n.link) el.style.cursor = 'pointer';
   });
   const wrap = document.createElement('div');
-  wrap.className = 'd-present-frame';
+  wrap.className = 'd-present-frame' + (fadeIn ? ' fade-in' : '');
   wrap.appendChild(root);
   presentStage.replaceChildren(wrap);
   fitPresent();
@@ -53,11 +71,15 @@ function closePresent() {
 }
 
 function presentBack() {
+  if (presentTurning) return;
   const prev = presentState.stack.pop();
-  if (prev && nodeOf(prev)) showPresentFrame(prev);
+  if (!prev || !nodeOf(prev.id)) return;
+  const undoTurn = { cw: 'ccw', ccw: 'cw' }[prev.turn] || null;
+  showPresentFrame(prev.id, undoTurn);
 }
 
 presentStage.addEventListener('click', e => {
+  if (presentTurning) return;
   let el = e.target.closest('[data-pid]');
   while (el) {
     const n = nodeOf(el.dataset.pid);
@@ -65,7 +87,11 @@ presentStage.addEventListener('click', e => {
       if (n.link.type === 'back') presentBack();
       else {
         const t = nodeOf(n.link.target);
-        if (t && t.type === 'frame') { presentState.stack.push(presentState.frameId); showPresentFrame(t.id); }
+        if (t && t.type === 'frame') {
+          const turn = n.link.turn || null;
+          presentState.stack.push({ id: presentState.frameId, turn });
+          showPresentFrame(t.id, turn);
+        }
       }
       return;
     }

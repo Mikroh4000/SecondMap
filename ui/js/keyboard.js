@@ -54,11 +54,6 @@ document.addEventListener('keydown', async e => {
   // Group shortcut: Ctrl+G
   if ((e.ctrlKey || e.metaKey) && e.key === 'g') {
     e.preventDefault();
-    if (state.selectedNodes.size >= 2) {
-      const name = prompt('Gruppenname:', 'Gruppe');
-      if (name !== null) await createGroup(name, [...state.selectedNodes]);
-    } else {
-      showToast('Mindestens 2 Blöcke auswählen');
-    }
+    await groupSelectedNodes();
   }
 });

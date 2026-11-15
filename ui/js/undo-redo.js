@@ -131,6 +131,14 @@ async function applyUndoRedo(action, isUndo) {
       renderGroups();
       break;
     }
+    case 'set-group': {
+      for (const ch of action.changes) {
+        const n = state.nodes.find(x => x.id === ch.id);
+        if (n) { n.groupId = isUndo ? ch.oldGroupId : ch.newGroupId; await saveNode(n); }
+      }
+      renderGroups();
+      break;
+    }
     case 'clear': {
       if (isUndo) {
         for (const n of action.nodes) { const c={...n}; state.nodes.push(c); await saveNode(c); renderNode(c); }

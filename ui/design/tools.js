@@ -328,6 +328,8 @@ viewportEl.addEventListener('pointerleave', () => { if (D.hover && !drag) { D.ho
 
 viewportEl.addEventListener('dblclick', e => {
   if (D.tool !== 'move') return;
+  const label = document.elementsFromPoint(e.clientX, e.clientY).find(el => el.dataset && el.dataset.label);
+  if (label) { setSelection([label.dataset.label], { keepEntered: true }); renameSelection(); return; }
   const hit = hitId(e.target);
   if (!hit) return;
   const chain = chainOf(hit), cur = pickSelectable(hit);
@@ -418,6 +420,7 @@ document.addEventListener('keydown', e => {
   if (c === 'Equal' || c === 'NumpadAdd') { zoomCenter(1.25); return; }
   if (c === 'Minus' || c === 'NumpadSubtract') { zoomCenter(0.8); return; }
 
+  if (c === 'F2') { e.preventDefault(); renameSelection(); return; }
   if (c === 'Delete' || c === 'Backspace') { e.preventDefault(); deleteSelection(); return; }
   if (c === 'Escape') { if (D.tool !== 'move') setTool('move'); else { D.entered = new Set(); setSelection([]); } return; }
   if (c === 'Enter') {

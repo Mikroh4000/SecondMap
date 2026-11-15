@@ -43,11 +43,4 @@ $('search-input').addEventListener('keydown', e => {
 $('filter-tag').addEventListener('keydown', e => e.stopPropagation());
 
 // Group button
-if ($('btn-group')) $('btn-group').addEventListener('click', async () => {
-  if (state.selectedNodes.size >= 2) {
-    const name = prompt('Gruppenname:', 'Gruppe');
-    if (name !== null) await createGroup(name, [...state.selectedNodes]);
-  } else {
-    showToast('Mindestens 2 Blöcke auswählen zum Gruppieren');
-  }
-});
+if ($('btn-group')) $('btn-group').addEventListener('click', groupSelectedNodes);

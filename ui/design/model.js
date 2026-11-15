@@ -31,28 +31,6 @@ const FRAME_PRESETS = [
   ['Slide 16:9 (1920 × 1080)', 1920, 1080],
 ];
 
-const ICON_PATHS = {
-  home: 'M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10',
-  search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM21 21l-5-5',
-  user: 'M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM4 21a8 8 0 0 1 16 0',
-  heart: 'M12 21s-8-5-8-11a4.5 4.5 0 0 1 8-2.5A4.5 4.5 0 0 1 20 10c0 6-8 11-8 11z',
-  star: 'M12 3l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17.5 6.1 20.8l1.3-6.5L2.5 9.8 9.1 9z',
-  menu: 'M3 6h18M3 12h18M3 18h18',
-  plus: 'M12 4v16M4 12h16',
-  check: 'M4 12l5 5L20 6',
-  close: 'M5 5l14 14M19 5L5 19',
-  arrow: 'M4 12h16M14 6l6 6-6 6',
-  bell: 'M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4',
-  settings: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2',
-  mail: 'M3 6h18v12H3zM3 7l9 7 9-7',
-  camera: 'M3 8h4l2-3h6l2 3h4v12H3zM12 11a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z',
-};
-
-const BUILTIN_ASSETS = Object.entries(ICON_PATHS).map(([name, d]) => {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#333333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
-  return { id: 'icon-' + name, name, kind: 'icon', w: 24, h: 24, dataUrl: 'data:image/svg+xml;utf8,' + encodeURIComponent(svg) };
-});
-
 function uid() { return 'd' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3); }
 
 function getAsset(id) {

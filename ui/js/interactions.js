@@ -1,11 +1,29 @@
 // Mouse interaction: node click/drag, connecting, resizing, panning, selection rectangle, wheel zoom.
 
 // ─── INTERACTIONS ────────────────────────────────────────────────
+// While a drag/pan/resize is running nothing may be text-selected (see body.is-interacting in index.css).
+function setInteracting(on) {
+  document.body.classList.toggle('is-interacting', on);
+  if (!on) return;
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount && !sel.isCollapsed) sel.removeAllRanges();
+}
+document.addEventListener('selectstart', e => {
+  if (document.body.classList.contains('is-interacting')) e.preventDefault();
+});
+
 function onNodeMouseDown(e, id) {
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'A'
+  // The title is a text field, but it only takes the mouse once it is focused; before that a press on it
+  // drags the node (and a plain click focuses it on release), so dragging never selects the title text.
+  const onTitle = e.target.classList.contains('node-title');
+  const titleActive = onTitle && document.activeElement === e.target;
+  if ((e.target.tagName === 'INPUT' && !(onTitle && !titleActive)) || e.target.tagName === 'BUTTON' || e.target.tagName === 'A'
     || e.target.closest('.node-connect-handle') || e.target.closest('.node-resize-handle')
     || e.target.closest('.node-submap-icon')) return;
   e.preventDefault(); e.stopPropagation();
+  state.titleClick = onTitle && !e.ctrlKey && !e.metaKey ? { id, x: e.clientX, y: e.clientY } : null;
+  if (document.activeElement && document.activeElement !== document.body && document.activeElement !== e.target) document.activeElement.blur();
+  setInteracting(true);
 
   if (state.mode === 'connect') { onNodeClick(e, id); return; }
 
@@ -80,6 +98,7 @@ function onHandleMouseDown(e, id) {
 
 function onResizeMouseDown(e, id) {
   e.preventDefault(); e.stopPropagation();
+  setInteracting(true);
   const n = state.nodes.find(x => x.id === id);
   if (!n) return;
   const el = getNodeEl(id);
@@ -90,6 +109,10 @@ function onResizeMouseDown(e, id) {
 canvasWrap.addEventListener('mousedown', e => {
   if (e.target === canvasWrap || e.target.id === 'edges-layer' || e.target.id === 'edges-group'
     || e.target.tagName === 'svg' || e.target.id === 'groups-layer' || e.target.closest('.group-box')) {
+    if (e.target.closest('.group-label button')) return;
+    e.preventDefault();
+    if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    setInteracting(true);
     if (state.mode === 'connect') {
       setMode('normal');
       if (state.connectSource) { updateNodeSelection(state.connectSource); state.connectSource = null; }
@@ -188,6 +211,7 @@ document.addEventListener('mousemove', e => {
 });
 
 document.addEventListener('mouseup', async e => {
+  setInteracting(false);
   flushFrame();
   // End selection rectangle
   if (state.selectionRect) {
@@ -256,6 +280,12 @@ document.addEventListener('mouseup', async e => {
       if (moves.length > 0) pushUndo({ type: 'move-nodes', moves });
       state.dragStartPositions = null;
     }
+    // A click (hardly any movement) on the title puts the cursor into it.
+    if (state.titleClick && Math.hypot(e.clientX - state.titleClick.x, e.clientY - state.titleClick.y) < 4) {
+      const input = getNodeEl(state.titleClick.id)?.querySelector('.node-title');
+      if (input) input.focus();
+    }
+    state.titleClick = null;
     for (const sid of state.selectedNodes) {
       const el = getNodeEl(sid);
       if (el) el.classList.remove('dragging');
